@@ -37,7 +37,8 @@ def debug_list(list_var: List, lname: str) -> None:
 
 def read_file(file_read_command: str,
               input_file_path: str,
-              input_group_separator_raw) -> List:
+              input_group_separator_raw: str,
+              add_line_number: bool) -> List:
     if file_read_command == 'cat':
         status_code, output = subprocess.getstatusoutput("{} '{}'".format(file_read_command, input_file_path))
     elif file_read_command == 'pdftotext':
@@ -51,25 +52,33 @@ def read_file(file_read_command: str,
         print(output)
         sys.exit(status_code)
 
-    # output_numbered = subprocess.run(['awk', r'''{printf("\033[32m%d:\033[0m %s\n", NR, $0)}''', "-"],
-    line_count = output.count('\n')
-    max_digit_count = int(math.log10(line_count+1)) + 1
-    output_numbered = subprocess.run(['awk', r'''{printf("%0''' + str(max_digit_count) + r'''d: %s\n", NR, $0)}''', "-"],
-                                     stdout=subprocess.PIPE,
-                                     text=True,
-                                     input=output).stdout
-    output_numbered = str(output_numbered)
+    if add_line_number:
+        # output_numbered = subprocess.run(['awk', r'''{printf("\033[32m%d:\033[0m %s\n", NR, $0)}''', "-"],
+        line_count = output.count('\n')
+        max_digit_count = int(math.log10(line_count+1)) + 1
+        output_numbered = subprocess.run(['awk', r'''{printf("%0''' + str(max_digit_count) + r'''d: %s\n", NR, $0)}''', "-"],
+                                        stdout=subprocess.PIPE,
+                                        text=True,
+                                        input=output).stdout
+        output_numbered = str(output_numbered)
+        if input_group_separator_raw is not None:
+            if r'\n' in input_group_separator_raw:
+                input_group_separator = eval("'" + input_group_separator_raw[:-2].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-2:] + "'")
+            else:
+                input_group_separator = eval("'" + input_group_separator_raw + "'")
 
-    if input_group_separator_raw is not None:
-        if r'\n' in input_group_separator_raw:
-            input_group_separator = eval("'" + input_group_separator_raw[:-2].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-2:] + "'")
-        else:
-            input_group_separator = eval("'" + input_group_separator_raw + "'")
+            return re.split(
+                pattern=input_group_separator,
+                string=output_numbered,
+            )
+    else:
+        output_numbered = output
+        if input_group_separator_raw is not None:
+            return re.split(
+                pattern=eval("'" + input_group_separator_raw + "'"),
+                string=output_numbered
+            )
 
-        return re.split(
-            pattern=input_group_separator,
-            string=output_numbered,
-        )
     return [output_numbered, ]
 
 
@@ -78,7 +87,8 @@ def smart_search(file_read_command: str,
                  context_lines: int,
                  ignore_case: bool,
                  uniq_words_list: List,
-                 input_group_separator_raw: str) -> List:
+                 input_group_separator_raw: str,
+                 add_line_number: bool) -> List:
     global WORD_COLORS, GROUP_SEPARATOR
     # REFER: https://stackoverflow.com/questions/2168065/how-do-i-get-rid-of-line-separator-when-using-grep-with-context-lines/8840902
     command_to_run = ["grep", "-E", "--color=never", "--group-separator", GROUP_SEPARATOR, "-C", str(context_lines)]
@@ -87,7 +97,7 @@ def smart_search(file_read_command: str,
     # debug_list(words_list, "words_list")
     # group1 = subprocess.check_output(command_to_run + ['-n', words_list[0], input_file_path]).decode("utf-8").strip().split(GROUP_SEPARATOR)
     # eval(...) ensures that '\n' and other special characters are properly interpreted
-    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw)
+    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw, add_line_number)
     # debug_list(group1, "group1")
     group2: List = list()
 
@@ -140,8 +150,9 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         uniq_words_list.append(i)
 
     input_group_separator_raw = parameters['input_record_separator']
-
-    return file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw
+    add_line_number = parameters['line_number']
+    return file_read_command, input_file_path, context_lines, ignore_case, \
+           uniq_words_list, input_group_separator_raw, add_line_number
 
 
 def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, group_separator: str):
@@ -177,8 +188,10 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
             ('magenta', ('bold', 'reverse',) ),
         ))
     ))
-    words_list.insert(0, (r'\n\d+: ', ('green', None) ))
-    words_list.insert(0, (r'^\d+: ', ('green', None) ))
+    # words_list.insert(0, (r'\n\d+: ', ('green', None) ))
+    # words_list.insert(0, (r'^\d+: ', ('green', None) ))
+    words_list.insert(0, (r'\n[0-9]+: ', ('green', None) ))
+    words_list.insert(0, (r'^[0-9]+: ', ('green', None) ))
     print("   words = ", end='')
     for i, (j, (k_color, k_attr)) in enumerate(words_list[2:]):
         if no_color:
@@ -199,7 +212,11 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
         command_to_run.append("-i")
     def get_match_list(temp_regex, temp_str):
         a=str(subprocess.run(command_to_run + [temp_regex], stdout=subprocess.PIPE, text=True, input=temp_str).stdout).strip('\n').split('\n')
-        # print(a)
+        # print("----------")
+        # print(temp_regex, a)
+        # print("***")
+        # print(temp_str)
+        # print("----------")
         if len(a) == 1 and a[0].strip() =='':
             return list()
         return a
@@ -260,7 +277,6 @@ if __name__ == '__main__':
                            action='append',
                            nargs='?',
                            type=str,
-                           default=['/dev/stdin'],
                            help='The path to the text file to search')
     my_parser.add_argument('-i',
                            '--ignore-case',
@@ -294,6 +310,10 @@ if __name__ == '__main__':
     my_parser.add_argument('--no-color',
                            action='store_true',
                            help="Do not color the matches found")
+    my_parser.add_argument('-n',
+                           '--line-number',
+                           action='store_true',
+                           help='Print line number (NOTE: printing line numbers may cause problem with REGEX matching)')
     my_parser.add_argument('--group-separator',
                            action='store',
                            type=str,
@@ -322,8 +342,11 @@ if __name__ == '__main__':
     #       str('\n\t\t\t'.join(['{:30} : {}'.format(i, j) for i, j in vars(args).items()])))
 
     # REFER: https://stackoverflow.com/questions/6722936/python-argparse-make-at-least-one-argument-required
-    if not (args.w or args.g):
-        my_parser.error('No action requested, add -process or -upload')
+    if not (args.g or args.w or args.q):
+        my_parser.error('No action requested, add -g or -w or -q')
+
+    if args.path is None:
+        args.path=['/dev/stdin']
 
     for input_file_path in args.path:
         if not (os.path.exists(input_file_path)) or os.path.isdir(input_file_path):
