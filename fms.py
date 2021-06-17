@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import gc
 import os
 import sys
 from functools import reduce
@@ -16,10 +17,11 @@ import math
 
 # 26 Apr 2021: REFER
 #     --> https://stackoverflow.com/questions/17236005/grep-output-with-multiple-colors
-#           --> 1. https://github.com/rtulke/rpen
+#           --> 1. https://github.com/mbornet-hl/hl
 #           --> 2. https://github.com/paoloantinori/hhighlighter
 #                 --> Uses 3. http://beyondgrep.com/
-#           --> 4. https://github.com/mbornet-hl/hl
+#                             https://github.com/beyondgrep/ack3
+#           --> 4. https://github.com/rtulke/rpen
 #           --> 5. https://github.com/dczhu/cxpgrep
 #                 --> Uses the tool "h" from link 2 above
 
@@ -112,6 +114,7 @@ def smart_search(file_read_command: str,
             )
         group1 = group2
         group2 = list()
+        gc.collect()
         # debug_list(group1, "group1")
     file_segments_matched = list()
     for i in group1:
@@ -119,6 +122,7 @@ def smart_search(file_read_command: str,
         if i == '':
             continue
         file_segments_matched.append(i)
+    gc.collect()
     return file_segments_matched
 
 
@@ -169,17 +173,17 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
             ('cyan', ('bold',) ),
             ('magenta', ('bold',) ),
 
-            ('red', ('bold', 'dark',) ),
-            ('blue', ('bold', 'dark',) ),
-            ('yellow', ('bold', 'dark',) ),
-            ('cyan', ('bold', 'dark',) ),
-            ('magenta', ('bold', 'dark',) ),
+            # ('red', ('bold', 'dark',) ),
+            # ('blue', ('bold', 'dark',) ),
+            # ('yellow', ('bold', 'dark',) ),
+            # ('cyan', ('bold', 'dark',) ),
+            # ('magenta', ('bold', 'dark',) ),
 
-            ('red', ('underline',) ),
-            ('blue', ('underline',) ),
-            ('yellow', ('underline',) ),
-            ('cyan', ('underline',) ),
-            ('magenta', ('underline',) ),
+            ('red', ('bold', 'underline',) ),
+            ('blue', ('bold', 'underline',) ),
+            ('yellow', ('bold', 'underline',) ),
+            ('cyan', ('bold', 'underline',) ),
+            ('magenta', ('bold', 'underline',) ),
 
             ('red', ('bold', 'reverse',) ),
             ('blue', ('bold', 'reverse',) ),
@@ -248,11 +252,15 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
                     chain([segment], ((t, colored(t, t_color, attrs=t_attr)) for t, (t_color, t_attr) in words_found))
                 )
             )
+            # for x in [(t, colored(t, t_color, attrs=t_attr)) for t, (t_color, t_attr) in words_found]:
+            #     segment = segment.replace(*x)
+            #     gc.collect()
         if i < len(file_segments_matched) - 1:
             if no_color:
                 print(group_separator)
             else:
                 print(colored(group_separator, 'white', attrs=['bold']))
+        gc.collect()
 
 
 if __name__ == '__main__':
@@ -278,10 +286,16 @@ if __name__ == '__main__':
                            nargs='?',
                            type=str,
                            help='The path to the text file to search')
+    my_parser.add_argument('-P',
+                           '--Paths',
+                           action='store',
+                           nargs='+',
+                           type=str,
+                           help='The list of paths to the text files to search')
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
-                           help='Number of lines in the context')
+                           help='Ignore case while searching')
     my_parser.add_argument('-C',
                            metavar='--context',
                            type=int,
@@ -307,6 +321,9 @@ if __name__ == '__main__':
                            nargs='?',
                            type=str,
                            help='Optional words to search')
+    my_parser.add_argument('-Q',
+                           action='store_true',
+                           help='Do not print anything for files in which no results found')
     my_parser.add_argument('--no-color',
                            action='store_true',
                            help="Do not color the matches found")
@@ -346,7 +363,13 @@ if __name__ == '__main__':
         my_parser.error('No action requested, add -g or -w or -q')
 
     if args.path is None:
-        args.path=['/dev/stdin']
+        if args.Paths is None:
+            args.path=['/dev/stdin']
+        else:
+            args.path = args.Paths
+    else:
+        if args.Paths is not None:
+            (args.path).extend(args.Paths)
 
     for input_file_path in args.path:
         if not (os.path.exists(input_file_path)) or os.path.isdir(input_file_path):
@@ -354,8 +377,6 @@ if __name__ == '__main__':
             print('CANNOT open \'{}\' for reading: No such file or directory'.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
             continue
 
-        if len(args.path) > 1:
-            print('==> {} <=='.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
         # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw)
         search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
         # search_parameters:Dict = parse_parameters({'Path': './Q and A.md', 'ignore_case': True, 'n': 5, 'w': ['an[a-z]', 'what', 'is', 'o[a-z]'], 'g': None})
@@ -363,15 +384,26 @@ if __name__ == '__main__':
 
         # print('DEBUG: words_list = ' + str(search_parameters[3]))
         file_segments_matched: List = smart_search(*search_parameters)
-        highlight_words(file_segments_matched=file_segments_matched,
-                        words_list=search_parameters[4],
-                        ignore_case=search_parameters[3],
-                        no_color=args.no_color,
-                        group_separator=eval("'" + args.group_separator + "'"))
+        if (args.Q == False) or  len(file_segments_matched) > 0:
+            if len(args.path) > 1:
+                print('==> {} <=='.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+            highlight_words(file_segments_matched=file_segments_matched,
+                            words_list=search_parameters[4],
+                            ignore_case=search_parameters[3],
+                            no_color=args.no_color,
+                            group_separator=eval("'" + args.group_separator + "'"))
+            if len(args.path) > 1:
+                print()
 
-        if len(args.path) > 1:
-            print()
+        gc.collect()
 
     # Both the EXAMPLE's will give the same result
     # python c-smart-search.py -C 5 -i -g 'an[a-z] what is o[a-z] vms' "./Q and A.md"
     # python c-smart-search.py -C 5 -i -w 'an[a-z]' -w 'what' -w 'is' -w 'o[a-z]' -w 'vms' "./Q and A.md"
+
+    # my     ifconfig | c-fms -C 1000 -q '([a-z]+[0-9]*)+: ' -q '([0-9a-f]{2}:){5}[0-9a-f]{2}' -q '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -q '^(eth|(vir)?br|vnet)[0-9.:]*\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q '(errors|dropped|overruns):[^0][0-9]*'
+    # sof    ifconfig | c-fms -C 1000 -q '^(eth|(vir)?br|vnet)[0-9.]*:[0-9]+\>' -q '^(eth|(vir)?br|vnet)[0-9.]*\.[0-9]+\>' -q '([0-9a-f]{2}:){5}[0-9a-f]{2}' -q '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -q '^(eth|(vir)?br|vnet)[0-9.:]*\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q ' (errors|dropped|overruns):[^0][0-9]*'
+    # github ifconfig | c-fms -C 1000 -q 'inet addr:([0-9]{1,3}(\.[0-9]{1,3}){3})' -q '^((eth|(vir)?br|vnet)[0-9.]*:[0-9]+)\>' -q '^((eth|(vir)?br|vnet)[0-9.]*\.[0-9]+)\>' -q '(([0-9a-f]{2}:){5}[0-9a-f]{2})' -q '(\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>)' -q '(^(eth|(vir)?br|vnet)[0-9.:]*)\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q ' ((errors|dropped|overruns):[^0][0-9]*)'
+
+    # ip a | c-fms -C 1000 -q '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>'
+    # ps -e | c-fms -C 100000 -q '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -q '(00:00:[1-9][0-9] .*)' -q '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
