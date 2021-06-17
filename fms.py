@@ -164,97 +164,70 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
     #     for i in range(len(words_list)):
     #         words_list[i] = words_list[i].lower()
 
+    def bash_run(command_to_run: str, input: str) -> str:
+        res = subprocess.run(command_to_run, stdout=subprocess.PIPE, text=True, input=input)
+        if (res.stderr is not None) and (res.stderr != ''):
+            print(f"ERROR COMMAND: \"{command_to_run}\"")
+            print(res.stderr)
+        return res.stdout
+
     words_list = list(zip(
         words_list, 
         cycle((
-            ('red', ('bold',) ),
-            ('blue', ('bold',) ),
-            ('yellow', ('bold',) ),
-            ('cyan', ('bold',) ),
-            ('magenta', ('bold',) ),
+            r'-e3r',
+            r'-e3b',
+            r'-e3y',
+            r'-e3c',
+            r'-e3m',
 
-            # ('red', ('bold', 'dark',) ),
-            # ('blue', ('bold', 'dark',) ),
-            # ('yellow', ('bold', 'dark',) ),
-            # ('cyan', ('bold', 'dark',) ),
-            # ('magenta', ('bold', 'dark',) ),
+            r'-e2R',
+            r'-e1B',
+            r'-e2Y',
+            r'-e2C',
+            r'-e2M',
 
-            ('red', ('bold', 'underline',) ),
-            ('blue', ('bold', 'underline',) ),
-            ('yellow', ('bold', 'underline',) ),
-            ('cyan', ('bold', 'underline',) ),
-            ('magenta', ('bold', 'underline',) ),
+            r'-e4r',
+            r'-e4b',
+            r'-e4y',
+            r'-e4c',
+            r'-e4m',
 
-            ('red', ('bold', 'reverse',) ),
-            ('blue', ('bold', 'reverse',) ),
-            ('yellow', ('bold', 'reverse',) ),
-            ('cyan', ('bold', 'reverse',) ),
-            ('magenta', ('bold', 'reverse',) ),
         ))
     ))
     # words_list.insert(0, (r'\n\d+: ', ('green', None) ))
     # words_list.insert(0, (r'^\d+: ', ('green', None) ))
-    words_list.insert(0, (r'\n[0-9]+: ', ('green', None) ))
-    words_list.insert(0, (r'^[0-9]+: ', ('green', None) ))
+    words_list.insert(0, (r'\n[0-9]+: ', r'-e2g'))
+    words_list.insert(0, (r'^[0-9]+: ', r'-e2g'))
+
+    hl_command = ["hl"]
+    if ignore_case:
+        hl_command += ["-i"]
+    for i, j in words_list:
+        hl_command += [j] + [i]
+
     print("   words = ", end='')
-    for i, (j, (k_color, k_attr)) in enumerate(words_list[2:]):
-        if no_color:
-            print(j, end='')
-        else:
-            print(colored(j, k_color, attrs=k_attr), end='')
-        if i < (len(words_list) - 2 - 1):
-            print(' , ', end='')
-        else:
-            print()
     if no_color:
+        print(' , '.join( [str(i) for i,j in words_list[2:]] ))
         print("segments = " + str(len(file_segments_matched)))
     else:
+        print(
+            bash_run(
+                hl_command,
+                ' , '.join( [str(i) for i,j in words_list[2:]] )
+            )
+        )
         print("segments = " + colored(str(len(file_segments_matched)), color='white', attrs=['bold']))
 
-    command_to_run = ["grep", "-E", "--color=never", "-o"]
-    if ignore_case:
-        command_to_run.append("-i")
-    def get_match_list(temp_regex, temp_str):
-        a=str(subprocess.run(command_to_run + [temp_regex], stdout=subprocess.PIPE, text=True, input=temp_str).stdout).strip('\n').split('\n')
-        # print("----------")
-        # print(temp_regex, a)
-        # print("***")
-        # print(temp_str)
-        # print("----------")
-        if len(a) == 1 and a[0].strip() =='':
-            return list()
-        return a
-
     for i, segment in enumerate(file_segments_matched):
-        # if ignore_case:
-        #     segment = segment.lower()
         if no_color:
             print(segment)
         else:
-            words_found = list()
-            for j, j_color_attr in words_list:                
-                # REFER: https://www.programiz.com/python-programming/regex
-                # REFER: https://stackoverflow.com/questions/19686533/how-to-zip-two-differently-sized-lists
-                
-                # NOTE/WARNING: re.findall is not working as expected with input="ether 00:50:56:c0:00:08  txqueuelen 1000  (Ethernet)" and regex='([0-9a-f]{2}:){5}[0-9a-f]{2}'
-                # words_found.extend(list(
-                #     zip(re.findall(j, segment, flags=re.IGNORECASE if ignore_case else 0), cycle((j_color_attr,)))
-                # ))
-
-                words_found.extend(list(
-                    zip(get_match_list(j, segment), cycle((j_color_attr,)))
-                ))
-
-            # REFER: https://stackoverflow.com/questions/57251653/highlight-specific-words-in-a-sentence-in-python
             print(
-                reduce(
-                    lambda t, x: t.replace(*x),
-                    chain([segment], ((t, colored(t, t_color, attrs=t_attr)) for t, (t_color, t_attr) in words_found))
+                bash_run(
+                    hl_command,
+                    segment
                 )
             )
-            # for x in [(t, colored(t, t_color, attrs=t_attr)) for t, (t_color, t_attr) in words_found]:
-            #     segment = segment.replace(*x)
-            #     gc.collect()
         if i < len(file_segments_matched) - 1:
             if no_color:
                 print(group_separator)
