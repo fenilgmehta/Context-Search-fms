@@ -2,8 +2,7 @@
 import gc
 import os
 import sys
-from functools import reduce
-from itertools import chain, cycle
+from itertools import cycle
 import subprocess
 from typing import Dict, List, Tuple
 from termcolor import colored
@@ -25,10 +24,10 @@ import math
 #           --> 5. https://github.com/dczhu/cxpgrep
 #                 --> Uses the tool "h" from link 2 above
 
-# REFER: https://askubuntu.com/a/558422
-# Below used colors: Red, Blue, Yellow, Cyan, Magenta
-WORD_COLORS: Tuple = ('1;31;49', '1;34;49', '1;33;49', '1;36;49', '1;35;49')
-GROUP_SEPARATOR: str = '1!2@3#4$5%6^7&8*9(0)'
+# REFER for Coloring Text In Terminal: https://askubuntu.com/a/558422
+
+# Here "+" is used to create the "GROUP_SEPARATOR" to avoid wrong splitting when this program is used on itself
+GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
 
 
 def debug_list(list_var: List, lname: str) -> None:
@@ -51,21 +50,39 @@ def read_file(file_read_command: str,
 
     if status_code != 0:
         # ERROR occurred
-        print(output)
+        print("ERROR occurred: status_code = " + str(status_code), file=sys.stderr)
+        print(output, file=sys.stderr)
+        print("\nExiting...", file=sys.stderr)
         sys.exit(status_code)
+
+    if input_group_separator_raw is not None:
+        # This "replace" is required because single quotes are used in "eval" statements later
+        input_group_separator_raw = input_group_separator_raw.replace("'", r"\'")
 
     if add_line_number:
         # output_numbered = subprocess.run(['awk', r'''{printf("\033[32m%d:\033[0m %s\n", NR, $0)}''', "-"],
-        line_count = output.count('\n')
-        max_digit_count = int(math.log10(line_count+1)) + 1
-        output_numbered = subprocess.run(['awk', r'''{printf("%0''' + str(max_digit_count) + r'''d: %s\n", NR, $0)}''', "-"],
+        # TODO: Windows line separator may not work correctly
+        line_count = output.count('\n') + 1  # This line count is equal to what Vim shows
+        max_digit_count = int(math.log10(line_count)) + 1
+        global GROUP_SEPARATOR
+        # "-F" parameter is used to avoid un-necessary work by awk
+        output_numbered = subprocess.run(['awk', '-F', GROUP_SEPARATOR, r'{printf("%0' + str(max_digit_count) + r'd: %s\n", NR, $0)}', '-'],
                                         stdout=subprocess.PIPE,
                                         text=True,
                                         input=output).stdout
         output_numbered = str(output_numbered)
         if input_group_separator_raw is not None:
             if r'\n' in input_group_separator_raw:
-                input_group_separator = eval("'" + input_group_separator_raw[:-2].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-2:] + "'")
+                # At present, -n and -I work together properly only if -I has only 
+                #     1. newline "\n" characters or
+                #     2. a simple string without any newline character (regex without "^" and "$" are fine)
+
+                # TODO: This needs to be fixed. It can not handle all splits when "-n" parameter is there
+                # TODO: Check if -2 is required or -1 is required
+                # NOTE: Previously it was -2
+                # Last new line need not be replaced
+                input_group_separator = eval("'" + input_group_separator_raw[:-1].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-1:] + "'")
+                # input_group_separator = eval("'" + input_group_separator_raw.replace(r'\n', r'\n\\d+: ') + "'")
             else:
                 input_group_separator = eval("'" + input_group_separator_raw + "'")
 
@@ -91,7 +108,7 @@ def smart_search(file_read_command: str,
                  uniq_words_list: List,
                  input_group_separator_raw: str,
                  add_line_number: bool) -> List:
-    global WORD_COLORS, GROUP_SEPARATOR
+    global GROUP_SEPARATOR
     # REFER: https://stackoverflow.com/questions/2168065/how-do-i-get-rid-of-line-separator-when-using-grep-with-context-lines/8840902
     command_to_run = ["grep", "-E", "--color=never", "--group-separator", GROUP_SEPARATOR, "-C", str(context_lines)]
     if ignore_case:
@@ -141,25 +158,28 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
             words_list.extend(i.split())
     if parameters['w'] is not None:
         words_list.extend(parameters['w'])
-    if parameters['q'] is not None:
-        for i in parameters['q']:
+    if parameters['W'] is not None:
+        for i in parameters['W']:
             words_list.append('({})?'.format(i))
 
+    add_line_number = parameters['line_number']
     words_list_set = set()
     uniq_words_list = list()
     for i in words_list:
         if i in words_list_set:
             continue
         words_list_set.add(i)
-        uniq_words_list.append(i)
+        if add_line_number and i[0] == '^':
+            uniq_words_list.append("^([0-9]+: )?(" + i[1:] + ")")  # replace "^" with "^([0-9]+: )?" to handle leading line number
+        else:
+            uniq_words_list.append(i)
 
     input_group_separator_raw = parameters['input_record_separator']
-    add_line_number = parameters['line_number']
     return file_read_command, input_file_path, context_lines, ignore_case, \
            uniq_words_list, input_group_separator_raw, add_line_number
 
 
-def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, group_separator: str):
+def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, output_segment_separator: str):
     # if ignore_case:
     #     for i in range(len(words_list)):
     #         words_list[i] = words_list[i].lower()
@@ -183,7 +203,7 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
             r'-e2R',
             r'-e1B',
             r'-e2Y',
-            r'-e2C',
+            r'-e1C',
             r'-e2M',
 
             r'-e4r',
@@ -205,17 +225,26 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
     for i, j in words_list:
         hl_command += [j] + [i]
 
-    print("   words = ", end='')
+    if len(words_list) > 2:
+        print("   words = ", end='')
+        if no_color:
+            print(' , '.join( [str(i) for i,j in words_list[2:]] ))
+        else:
+            print(
+                ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
+            )
+            # print(
+            #     bash_run(
+            #         hl_command,
+            #         ' , '.join( [str(i) for i,j in words_list[2:]] )
+            #     )
+            # )
+    else:
+        print("NO words searched")
+
     if no_color:
-        print(' , '.join( [str(i) for i,j in words_list[2:]] ))
         print("segments = " + str(len(file_segments_matched)))
     else:
-        print(
-            bash_run(
-                hl_command,
-                ' , '.join( [str(i) for i,j in words_list[2:]] )
-            )
-        )
         print("segments = " + colored(str(len(file_segments_matched)), color='white', attrs=['bold']))
 
     for i, segment in enumerate(file_segments_matched):
@@ -230,9 +259,9 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
             )
         if i < len(file_segments_matched) - 1:
             if no_color:
-                print(group_separator)
+                print(output_segment_separator)
             else:
-                print(colored(group_separator, 'white', attrs=['bold']))
+                print(colored(output_segment_separator, 'white', attrs=['bold']))
         gc.collect()
 
 
@@ -272,8 +301,8 @@ if __name__ == '__main__':
     my_parser.add_argument('-C',
                            metavar='--context',
                            type=int,
-                           default=5,
-                           help='Number of lines in the context')
+                           default=10,
+                           help='Number of lines in the context [default: 10]')
     # NOTE: this last option '-g' / '--group' is required because user may not want the
     #       shell to do any text processing on their query
     my_parser.add_argument('-g',
@@ -288,8 +317,8 @@ if __name__ == '__main__':
                            nargs='?',
                            type=str,
                            help='Word to search')
-    my_parser.add_argument('-q',
-                           metavar='--quiet',
+    my_parser.add_argument('-W',
+                           metavar='--Word',
                            action='append',
                            nargs='?',
                            type=str,
@@ -303,13 +332,14 @@ if __name__ == '__main__':
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
-                           help='Print line number (NOTE: printing line numbers may cause problem with REGEX matching)')
-    my_parser.add_argument('--group-separator',
+                           help='Print line number (NOTE: printing line numbers may cause problem -I parameter and REGEX which use "^")')
+    my_parser.add_argument('-O',
+                           '--output-segment-separator',
                            action='store',
                            type=str,
                            default='--',
-                           help='String to separate the groups which matched the input pattern')
-    my_parser.add_argument('-R',
+                           help='String to separate the output segments which matched the pattern')
+    my_parser.add_argument('-I',
                            '--input-record-separator',
                            action='store',
                            type=str,
@@ -332,8 +362,9 @@ if __name__ == '__main__':
     #       str('\n\t\t\t'.join(['{:30} : {}'.format(i, j) for i, j in vars(args).items()])))
 
     # REFER: https://stackoverflow.com/questions/6722936/python-argparse-make-at-least-one-argument-required
-    if not (args.g or args.w or args.q):
-        my_parser.error('No action requested, add -g or -w or -q')
+    # TODO: verify if below condition check is required or not
+    # if not (args.g or args.w or args.q):
+    #     my_parser.error('No action requested, add -g or -w or -W')
 
     if args.path is None:
         if args.Paths is None:
@@ -364,7 +395,7 @@ if __name__ == '__main__':
                             words_list=search_parameters[4],
                             ignore_case=search_parameters[3],
                             no_color=args.no_color,
-                            group_separator=eval("'" + args.group_separator + "'"))
+                            output_segment_separator=eval("'" + args.output_segment_separator + "'"))
             if len(args.path) > 1:
                 print()
 
@@ -374,9 +405,9 @@ if __name__ == '__main__':
     # python c-smart-search.py -C 5 -i -g 'an[a-z] what is o[a-z] vms' "./Q and A.md"
     # python c-smart-search.py -C 5 -i -w 'an[a-z]' -w 'what' -w 'is' -w 'o[a-z]' -w 'vms' "./Q and A.md"
 
-    # my     ifconfig | c-fms -C 1000 -q '([a-z]+[0-9]*)+: ' -q '([0-9a-f]{2}:){5}[0-9a-f]{2}' -q '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -q '^(eth|(vir)?br|vnet)[0-9.:]*\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q '(errors|dropped|overruns):[^0][0-9]*'
-    # sof    ifconfig | c-fms -C 1000 -q '^(eth|(vir)?br|vnet)[0-9.]*:[0-9]+\>' -q '^(eth|(vir)?br|vnet)[0-9.]*\.[0-9]+\>' -q '([0-9a-f]{2}:){5}[0-9a-f]{2}' -q '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -q '^(eth|(vir)?br|vnet)[0-9.:]*\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q ' (errors|dropped|overruns):[^0][0-9]*'
-    # github ifconfig | c-fms -C 1000 -q 'inet addr:([0-9]{1,3}(\.[0-9]{1,3}){3})' -q '^((eth|(vir)?br|vnet)[0-9.]*:[0-9]+)\>' -q '^((eth|(vir)?br|vnet)[0-9.]*\.[0-9]+)\>' -q '(([0-9a-f]{2}:){5}[0-9a-f]{2})' -q '(\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>)' -q '(^(eth|(vir)?br|vnet)[0-9.:]*)\>' -q '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -q ' ((errors|dropped|overruns):[^0][0-9]*)'
+    # my     ifconfig | c-fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W '(errors|dropped|overruns):[^0][0-9]*'
+    # sof    ifconfig | c-fms -C 1000 -W '^(eth|(vir)?br|vnet)[0-9.]*:[0-9]+\>' -W '^(eth|(vir)?br|vnet)[0-9.]*\.[0-9]+\>' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' (errors|dropped|overruns):[^0][0-9]*'
+    # github ifconfig | c-fms -C 1000 -W 'inet addr:([0-9]{1,3}(\.[0-9]{1,3}){3})' -W '^((eth|(vir)?br|vnet)[0-9.]*:[0-9]+)\>' -W '^((eth|(vir)?br|vnet)[0-9.]*\.[0-9]+)\>' -W '(([0-9a-f]{2}:){5}[0-9a-f]{2})' -W '(\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>)' -W '(^(eth|(vir)?br|vnet)[0-9.:]*)\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' ((errors|dropped|overruns):[^0][0-9]*)'
 
-    # ip a | c-fms -C 1000 -q '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>'
-    # ps -e | c-fms -C 100000 -q '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -q '(00:00:[1-9][0-9] .*)' -q '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
+    # ip a | c-fms -C 1000 -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>'
+    # ps -e | c-fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
