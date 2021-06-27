@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #!/usr/bin/python3
 import gc
 import os
@@ -179,7 +180,7 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
            uniq_words_list, input_group_separator_raw, add_line_number
 
 
-def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, output_segment_separator: str):
+def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, output_segment_separator: str, verbose: bool):
     # if ignore_case:
     #     for i in range(len(words_list)):
     #         words_list[i] = words_list[i].lower()
@@ -225,27 +226,29 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
     for i, j in words_list:
         hl_command += [j] + [i]
 
-    if len(words_list) > 2:
-        print("   words = ", end='')
-        if no_color:
-            print(' , '.join( [str(i) for i,j in words_list[2:]] ))
+    if verbose:
+        # Print Word Info
+        if len(words_list) > 2:
+            print("   words = ", end='')
+            if no_color:
+                print(' , '.join( [str(i) for i,j in words_list[2:]] ))
+            else:
+                print(
+                    ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
+                )
+                # print(
+                #     bash_run(
+                #         hl_command,
+                #         ' , '.join( [str(i) for i,j in words_list[2:]] )
+                #     )
+                # )
         else:
-            print(
-                ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
-            )
-            # print(
-            #     bash_run(
-            #         hl_command,
-            #         ' , '.join( [str(i) for i,j in words_list[2:]] )
-            #     )
-            # )
-    else:
-        print("NO words searched")
-
-    if no_color:
-        print("segments = " + str(len(file_segments_matched)))
-    else:
-        print("segments = " + colored(str(len(file_segments_matched)), color='white', attrs=['bold']))
+            print("NO words searched")
+        # Print Segment Info
+        if no_color:
+            print("segments = " + str(len(file_segments_matched)))
+        else:
+            print("segments = " + colored(str(len(file_segments_matched)), color='white', attrs=['bold']))
 
     for i, segment in enumerate(file_segments_matched):
         if no_color:
@@ -294,6 +297,18 @@ if __name__ == '__main__':
                            nargs='+',
                            type=str,
                            help='The list of paths to the text files to search')
+    my_parser.add_argument('-r',
+                           '--recursive',
+                           action='append',
+                           nargs='?',
+                           type=str,
+                           help='The list of paths to be used for recursive search')
+    my_parser.add_argument('-x',
+                           '--extensions',
+                           action='append',
+                           nargs='?',
+                           type=str,
+                           help='Files with these extensions only to be searched (Example Usage: -x txt -x md -x pdf OR -x "txt md pdf")')
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
@@ -333,12 +348,10 @@ if __name__ == '__main__':
                            '--line-number',
                            action='store_true',
                            help='Print line number (NOTE: printing line numbers may cause problem -I parameter and REGEX which use "^")')
-    my_parser.add_argument('-O',
-                           '--output-segment-separator',
-                           action='store',
-                           type=str,
-                           default='--',
-                           help='String to separate the output segments which matched the pattern')
+    my_parser.add_argument('-v',
+                           '--verbose',
+                           action='store_true',
+                           help='Print expression highlighted and number of segments which satisfied the search conditions')
     my_parser.add_argument('-I',
                            '--input-record-separator',
                            action='store',
@@ -348,6 +361,12 @@ if __name__ == '__main__':
                                 'newline followed by two hyphen, just write "\\n--". '
                                 'Note: input will be evaluated using python syntax. Hence, no need '
                                 'to make bash correctly interpret special characters such as "\\n" or "\\t"')
+    my_parser.add_argument('-O',
+                           '--output-segment-separator',
+                           action='store',
+                           type=str,
+                           default='--',
+                           help='String to separate the output segments which matched the pattern')
     my_parser.add_argument('--cmd',
                            action='store',
                            type=str,
@@ -366,20 +385,50 @@ if __name__ == '__main__':
     # if not (args.g or args.w or args.q):
     #     my_parser.error('No action requested, add -g or -w or -W')
 
-    if args.path is None:
-        if args.Paths is None:
-            args.path=['/dev/stdin']
-        else:
-            args.path = args.Paths
-    else:
-        if args.Paths is not None:
-            (args.path).extend(args.Paths)
+    paths_list: List = list()
 
-    for input_file_path in args.path:
-        if not (os.path.exists(input_file_path)) or os.path.isdir(input_file_path):
-            # print('The file path specified does not exist')
-            print('CANNOT open \'{}\' for reading: No such file or directory'.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+    if (args.path is None) and (args.Paths is None) and (args.recursive is None):
+        paths_list=['/dev/stdin']
+
+    # Parse -p, -P, -r parameters
+    if args.path is not None:
+        paths_list.extend(args.path)
+    if args.Paths is not None:
+        paths_list.extend(args.Paths)
+    if args.recursive is not None:
+        for rec_path in args.recursive:
+            # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
+            for r,d,f in os.walk(rec_path):
+                for file in sorted(f):
+                    paths_list.append(os.path.join(r, file))
+
+    # Parse -x parameter
+    extensions_list: List = None
+    if args.extensions is not None:
+        extensions_list = list()
+        for i in args.extensions:
+            extensions_list.extend(i.split())
+
+    flag_show_directory_warning = True
+    for input_file_path in paths_list:
+        file_exists = os.path.exists(input_file_path)
+        if not (file_exists):
+            print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(colored('Warning', 'yellow', attrs=['bold']), colored(input_file_path, 'white', attrs=['bold', 'underline'])))
             continue
+
+        if os.path.isdir(input_file_path):
+            if flag_show_directory_warning:
+                print('{}: Use -r for recursively searching inside a directory'.format(colored('Error', 'red', attrs=['bold'])))
+                flag_show_directory_warning = False
+            print('{}: Not scanning directory \'{}\''.format(colored('Warning', 'yellow', attrs=['bold']), colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+            continue
+
+        if extensions_list is not None:
+            # -x parameter is used
+            # Input "example.pdf" ---> ['example', '.pdf'] 
+            # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
+            if os.path.splitext(input_file_path)[-1][1:] not in extensions_list:
+                continue
 
         # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw)
         search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
@@ -388,15 +437,16 @@ if __name__ == '__main__':
 
         # print('DEBUG: words_list = ' + str(search_parameters[3]))
         file_segments_matched: List = smart_search(*search_parameters)
-        if (args.Q == False) or  len(file_segments_matched) > 0:
-            if len(args.path) > 1:
+        if (args.Q == False) or (len(file_segments_matched) > 0):
+            if len(paths_list) > 1:
                 print('==> {} <=='.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
             highlight_words(file_segments_matched=file_segments_matched,
                             words_list=search_parameters[4],
                             ignore_case=search_parameters[3],
                             no_color=args.no_color,
-                            output_segment_separator=eval("'" + args.output_segment_separator + "'"))
-            if len(args.path) > 1:
+                            output_segment_separator=eval("'" + args.output_segment_separator + "'"),
+                            verbose=args.verbose)
+            if len(paths_list) > 1:
                 print()
 
         gc.collect()
