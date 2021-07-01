@@ -4,7 +4,7 @@ grep like utility to search text and PDF files for context and highlight using d
 
 ### Why use `fms` ?
 
-Has it ever happened that you know a few words of a line/paragraph but do not know in which document or in which page of the document you had read it ? If yes, then use `fms`. It will help you find the line/paragraph/document in a jiffy using Extended Regular Expression ((Regexp Syntax Summary)[https://www.greenend.org.uk/rjk/tech/regexp.html])
+Has it ever happened that you know a few words of a line/paragraph but do not know in which document or in which page of the document you had read it ? If yes, then use `fms`. It will help you find the line/paragraph/document in a jiffy using Extended Regular Expression ([Regexp Syntax Summary](https://www.greenend.org.uk/rjk/tech/regexp.html))
 
 
 ### Installation Steps and Requirements to use `fms`
