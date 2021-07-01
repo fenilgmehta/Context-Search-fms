@@ -316,7 +316,7 @@ if __name__ == '__main__':
                            action='append',
                            nargs='?',
                            type=str,
-                           help='Files with these extensions only to be searched (Example Usage: -x txt -x md -x pdf OR -x "txt md pdf")')
+                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x txt -x md -x pdf OR -x "txt md pdf")')
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
@@ -429,34 +429,44 @@ if __name__ == '__main__':
     # if not (args.g or args.w or args.q):
     #     my_parser.error('No action requested, add -g or -w or -W')
 
-    paths_list: List = list()
-
-    if (args.path is None) and (args.Paths is None) and (args.recursive is None):
-        paths_list=['/dev/stdin']
     if args.files_with_matches:
         args.Q = True
 
-    # Parse -p, -P, -r parameters
-    if args.path is not None:
-        paths_list.extend(args.path)
-    if args.Paths is not None:
-        paths_list.extend(args.Paths)
-    if args.recursive is not None:
-        for rec_path in args.recursive:
-            # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
-            for r,d,f in os.walk(rec_path):
-                for file in sorted(f):
-                    paths_list.append(os.path.join(r, file))
+    paths_list: List = list()
+    if (args.path is None) and (args.Paths is None) and (args.recursive is None):
+        paths_list=['/dev/stdin']
+    else:
+        # Parse -p, -P, -r parameters
+        if args.path is not None:
+            paths_list.extend(args.path)
+        if args.Paths is not None:
+            paths_list.extend(args.Paths)
+        paths_list.append(None)
+        if args.recursive is not None:
+            for rec_path in args.recursive:
+                # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
+                for r,d,f in os.walk(rec_path):
+                    for file in sorted(f):
+                        paths_list.append(os.path.join(r, file))
+        pass
 
     # Parse -x parameter
     extensions_list: List = None
     if args.extensions is not None:
-        extensions_list = list()
-        for i in args.extensions:
-            extensions_list.extend(i.split())
+        if args.recursive is None:
+            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
+        else:
+            extensions_list = list()
+            for i in args.extensions:
+                for j in i.split():
+                    extensions_list.extend(j.lstrip('.'))
 
     flag_show_directory_warning = True
+    flag_check_extensions_list = False
     for input_file_path in paths_list:
+        if input_file_path is None:
+            flag_check_extensions_list = True
+            continue
         file_exists = os.path.exists(input_file_path)
         if not (file_exists):
             print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
@@ -469,7 +479,7 @@ if __name__ == '__main__':
                 flag_show_directory_warning = False
             continue
 
-        if extensions_list is not None:
+        if (extensions_list is not None) and flag_check_extensions_list:
             # -x parameter is used
             # Input "example.pdf" ---> ['example', '.pdf']
             # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
