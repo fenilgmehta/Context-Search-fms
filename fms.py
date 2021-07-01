@@ -282,8 +282,8 @@ if __name__ == '__main__':
 
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
-                                        description='Smart multi-word search across multiples lines',
-                                        epilog='Enjoy the program! :)',
+                                        description='Smart multi-word context search across multiples lines',
+                                        epilog='Enjoy the program :)',
                                         prefix_chars='-',
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
@@ -316,7 +316,7 @@ if __name__ == '__main__':
                            action='append',
                            nargs='?',
                            type=str,
-                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x txt -x md -x pdf OR -x "txt md pdf")')
+                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x md -x pdf OR -x "md pdf") (Note: for "file.tar.gz" only "-x gz" should be used)')
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
@@ -357,7 +357,7 @@ if __name__ == '__main__':
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
-                           help='Print line number (NOTE: printing line numbers may cause problem -I parameter and REGEX which use "^")')
+                           help='Print line number (Note: printing line numbers may cause problem -I parameter and REGEX which use "^")')
     my_parser.add_argument('-v',
                            '--verbose',
                            action='store_true',
