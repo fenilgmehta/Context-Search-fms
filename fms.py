@@ -6,10 +6,11 @@ import sys
 from itertools import cycle
 import subprocess
 from typing import Dict, List, Tuple
-from termcolor import colored
+import neotermcolor
 import re
 import pathlib
 import math
+import logging
 
 # This   # echo "abcdefghijklmnopqrstuvwxyz" | c-smart-search.sh -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
 # Link 1 # echo "abcdefghijklmnopqrstuvwxyz" | rpen.py -k a b c d e f g h i j k l n o p q r s t u v w x y z
@@ -29,12 +30,22 @@ import math
 
 # Here "+" is used to create the "GROUP_SEPARATOR" to avoid wrong splitting when this program is used on itself
 GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
+COLOR_OUTPUT_TEXT: bool = True
+EXIT_CODE: int = 1
+logger = None
 
 
 def debug_list(list_var: List, lname: str) -> None:
     print("\n*** *** ***\nDEBUG: " + lname + "\n")
     for i in list_var:
         print(i, end="\n" + GROUP_SEPARATOR + "\n")
+
+
+def my_colored(text, color=None, on_color=None, attrs=None):
+    global COLOR_OUTPUT_TEXT
+    if COLOR_OUTPUT_TEXT:
+        return neotermcolor.colored(text, color, on_color, attrs)
+    return text
 
 
 def read_file(file_read_command: str,
@@ -51,7 +62,9 @@ def read_file(file_read_command: str,
 
     if status_code != 0:
         # ERROR occurred
-        print("ERROR occurred: status_code = " + str(status_code), file=sys.stderr)
+        print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path), file=sys.stderr)
+        print("{}: status_code = {}".format(my_colored('Error', 'red', attrs=['bold']), str(status_code)), file=sys.stderr)
+        print("{}: Output:".format(my_colored('Error', 'red', attrs=['bold'])), file=sys.stderr)
         print(output, file=sys.stderr)
         print("\nExiting...", file=sys.stderr)
         sys.exit(status_code)
@@ -74,7 +87,7 @@ def read_file(file_read_command: str,
         output_numbered = str(output_numbered)
         if input_group_separator_raw is not None:
             if r'\n' in input_group_separator_raw:
-                # At present, -n and -I work together properly only if -I has only 
+                # At present, -n and -I work together properly only if -I has only
                 #     1. newline "\n" characters or
                 #     2. a simple string without any newline character (regex without "^" and "$" are fine)
 
@@ -180,20 +193,21 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
            uniq_words_list, input_group_separator_raw, add_line_number
 
 
-def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, no_color: bool, output_segment_separator: str, verbose: bool):
+def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, output_segment_separator: str, verbose: bool):
     # if ignore_case:
     #     for i in range(len(words_list)):
     #         words_list[i] = words_list[i].lower()
+    global COLOR_OUTPUT_TEXT
 
     def bash_run(command_to_run: str, input: str) -> str:
         res = subprocess.run(command_to_run, stdout=subprocess.PIPE, text=True, input=input)
         if (res.stderr is not None) and (res.stderr != ''):
-            print(f"ERROR COMMAND: \"{command_to_run}\"")
+            print(f"ERROR COMMAND: \'{command_to_run}\'")
             print(res.stderr)
         return res.stdout
 
     words_list = list(zip(
-        words_list, 
+        words_list,
         cycle((
             r'-e3r',
             r'-e3b',
@@ -230,9 +244,7 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
         # Print Word Info
         if len(words_list) > 2:
             print("   words = ", end='')
-            if no_color:
-                print(' , '.join( [str(i) for i,j in words_list[2:]] ))
-            else:
+            if COLOR_OUTPUT_TEXT:
                 print(
                     ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
                 )
@@ -242,29 +254,25 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
                 #         ' , '.join( [str(i) for i,j in words_list[2:]] )
                 #     )
                 # )
+            else:
+                print(' , '.join( [str(i) for i,j in words_list[2:]] ))
         else:
             print("NO words searched")
         # Print Segment Info
-        if no_color:
-            print("segments = " + str(len(file_segments_matched)))
-        else:
-            print("segments = " + colored(str(len(file_segments_matched)), color='white', attrs=['bold']))
+        print("segments = " + my_colored(str(len(file_segments_matched)), 'white', attrs=['bold']))
 
     for i, segment in enumerate(file_segments_matched):
-        if no_color:
-            print(segment)
-        else:
+        if COLOR_OUTPUT_TEXT:
             print(
                 bash_run(
                     hl_command,
                     segment
                 )
             )
+        else:
+            print(segment)
         if i < len(file_segments_matched) - 1:
-            if no_color:
-                print(output_segment_separator)
-            else:
-                print(colored(output_segment_separator, 'white', attrs=['bold']))
+            print(my_colored(output_segment_separator, 'white', attrs=['bold']))
         gc.collect()
 
 
@@ -273,14 +281,14 @@ if __name__ == '__main__':
     import argparse
 
     # Create the parser
-    my_parser = argparse.ArgumentParser(prog='c-smart-search',
+    my_parser = argparse.ArgumentParser(prog='fms.py',
                                         description='Smart multi-word search across multiples lines',
                                         epilog='Enjoy the program! :)',
                                         prefix_chars='-',
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '1.0'
+    my_parser.version = '2.0'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
@@ -313,6 +321,10 @@ if __name__ == '__main__':
                            '--ignore-case',
                            action='store_true',
                            help='Ignore case while searching')
+    my_parser.add_argument('-l',
+                           '--files-with-matches',
+                           action='store_true',
+                           help='Supress normal output and just print the file names which satisfy the search query')
     my_parser.add_argument('-C',
                            metavar='--context',
                            type=int,
@@ -338,12 +350,10 @@ if __name__ == '__main__':
                            nargs='?',
                            type=str,
                            help='Optional words to search')
-    my_parser.add_argument('-Q',
-                           action='store_true',
-                           help='Do not print anything for files in which no results found')
-    my_parser.add_argument('--no-color',
-                           action='store_true',
-                           help="Do not color the matches found")
+    my_parser.add_argument('--color',
+                           type=str,
+                           default='auto',
+                           help="Can either be auto, always or never [default: auto]")
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
@@ -351,7 +361,10 @@ if __name__ == '__main__':
     my_parser.add_argument('-v',
                            '--verbose',
                            action='store_true',
-                           help='Print expression highlighted and number of segments which satisfied the search conditions')
+                           help='Print expression highlighted and number of segments which satisfied the search conditions (Bug: content printed because of this flag will be colored for --color=auto even if the output is not directed to a TTY)')
+    my_parser.add_argument('-Q',
+                           action='store_true',
+                           help='Do not print anything for files in which no results found')
     my_parser.add_argument('-I',
                            '--input-record-separator',
                            action='store',
@@ -372,9 +385,40 @@ if __name__ == '__main__':
                            type=str,
                            help='Command to use to read the input file and to write the output to stdout. '
                                 'Insert {} in the command to insert file name, e.g. "pdftotext {} -"')
+    my_parser.add_argument('-D',
+                           '--debug',
+                           action='store_true',
+                           help='Print debug information')
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
+    logger = logging.getLogger(__name__)
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    logger_file_handler = logging.FileHandler('/dev/stderr')
+    logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
+    logger_file_handler.setFormatter(logger_formatter)
+    logger.addHandler(logger_file_handler)
+
+    logger.debug("Debugging is ON")
+    logger.debug(args)
+    logger.handlers[0].flush()  # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
+
+    if str(args.color).lower() not in ('auto', 'always', 'never'):
+        logger.warning('Invalid parameter --color={}'.format(args.color))
+
+    if str(args.color).lower() == 'auto':
+        neotermcolor.tty_aware = True
+        COLOR_OUTPUT_TEXT = True
+    else:
+        neotermcolor.tty_aware = False
+        if str(args.color).lower() == 'always':
+            COLOR_OUTPUT_TEXT = True
+        else:
+            COLOR_OUTPUT_TEXT = False
+
     # print('DEBUG: args       = ' + str(args))
     # print('DEBUG: vars(args) = ' + str(vars(args)))
     # print('DEBUG: vars(args) = \n\t\t\t' +
@@ -389,6 +433,8 @@ if __name__ == '__main__':
 
     if (args.path is None) and (args.Paths is None) and (args.recursive is None):
         paths_list=['/dev/stdin']
+    if args.files_with_matches:
+        args.Q = True
 
     # Parse -p, -P, -r parameters
     if args.path is not None:
@@ -413,19 +459,19 @@ if __name__ == '__main__':
     for input_file_path in paths_list:
         file_exists = os.path.exists(input_file_path)
         if not (file_exists):
-            print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(colored('Warning', 'yellow', attrs=['bold']), colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+            print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
             continue
 
         if os.path.isdir(input_file_path):
+            print('{}: Not scanning directory \'{}\''.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
             if flag_show_directory_warning:
-                print('{}: Use -r for recursively searching inside a directory'.format(colored('Error', 'red', attrs=['bold'])))
+                print('{}: Use -r for recursively searching inside a directory'.format(my_colored('Warning', 'yellow', attrs=['bold'])), file=sys.stderr)
                 flag_show_directory_warning = False
-            print('{}: Not scanning directory \'{}\''.format(colored('Warning', 'yellow', attrs=['bold']), colored(input_file_path, 'white', attrs=['bold', 'underline'])))
             continue
 
         if extensions_list is not None:
             # -x parameter is used
-            # Input "example.pdf" ---> ['example', '.pdf'] 
+            # Input "example.pdf" ---> ['example', '.pdf']
             # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
             if os.path.splitext(input_file_path)[-1][1:] not in extensions_list:
                 continue
@@ -438,19 +484,27 @@ if __name__ == '__main__':
         # print('DEBUG: words_list = ' + str(search_parameters[3]))
         file_segments_matched: List = smart_search(*search_parameters)
         if (args.Q == False) or (len(file_segments_matched) > 0):
+            if args.files_with_matches:  # If this is true, then Q flag is set to avoid false +ve
+                print(my_colored(input_file_path, 'magenta', attrs=['bold']))
+                EXIT_CODE = 0
+                continue
             if len(paths_list) > 1:
-                print('==> {} <=='.format(colored(input_file_path, 'white', attrs=['bold', 'underline'])))
-            highlight_words(file_segments_matched=file_segments_matched,
-                            words_list=search_parameters[4],
-                            ignore_case=search_parameters[3],
-                            no_color=args.no_color,
-                            output_segment_separator=eval("'" + args.output_segment_separator + "'"),
-                            verbose=args.verbose)
+                print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+
+            if len(file_segments_matched) > 0:
+                EXIT_CODE = 0
+                highlight_words(file_segments_matched=file_segments_matched,
+                                words_list=search_parameters[4],
+                                ignore_case=search_parameters[3],
+                                output_segment_separator=eval("'" + args.output_segment_separator + "'"),
+                                verbose=args.verbose)
+
             if len(paths_list) > 1:
                 print()
 
         gc.collect()
-
+    pass
+    sys.exit(EXIT_CODE)
     # Both the EXAMPLE's will give the same result
     # python c-smart-search.py -C 5 -i -g 'an[a-z] what is o[a-z] vms' "./Q and A.md"
     # python c-smart-search.py -C 5 -i -w 'an[a-z]' -w 'what' -w 'is' -w 'o[a-z]' -w 'vms' "./Q and A.md"
