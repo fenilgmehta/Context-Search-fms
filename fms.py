@@ -172,10 +172,12 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         for i in parameters['g']:
             words_list.extend(i.split())
     if parameters['w'] is not None:
-        words_list.extend(parameters['w'])
+        for word in parameters['w']:
+            words_list.extend(word)
     if parameters['W'] is not None:
         for i in parameters['W']:
-            words_list.append('({})?'.format(i))
+            for word in i:
+                words_list.append('({})?'.format(word))
 
     add_line_number = parameters['line_number']
     words_list_set = set()
@@ -208,7 +210,8 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
         return res.stdout
 
     words_list = list(zip(
-        words_list,
+        # words_list,
+        ["({})".format(i) for i in words_list],  # TODO: verify
         cycle((
             r'-e3r',
             r'-e3b',
@@ -283,7 +286,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.1'
+    my_parser.version = '2.2'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
@@ -291,7 +294,7 @@ if __name__ == '__main__':
     my_parser.add_argument('-p',
                            '--path',
                            action='append',
-                           nargs='?',
+                           nargs='+',
                            type=str,
                            help='The path to the text file to search')
     my_parser.add_argument('-P',
@@ -309,7 +312,7 @@ if __name__ == '__main__':
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
-                           nargs='?',
+                           nargs='+',
                            type=str,
                            help='Files with these extensions only to be searched for -r flag (Example Usage: -x md -x pdf OR -x "md pdf") (Note: for "file.tar.gz" only "-x gz" should be used)')
     my_parser.add_argument('-i',
@@ -330,19 +333,19 @@ if __name__ == '__main__':
     my_parser.add_argument('-g',
                            metavar='--group',
                            action='append',
-                           nargs='?',
+                           # nargs='?',
                            type=str,
                            help='Any white space separated group of words to search (this gets priority over -w parameter)')
     my_parser.add_argument('-w',
                            metavar='--word',
                            action='append',
-                           nargs='?',
+                           nargs='+',
                            type=str,
                            help='Word to search')
     my_parser.add_argument('-W',
                            metavar='--Word',
                            action='append',
-                           nargs='?',
+                           nargs='+',
                            type=str,
                            help='Optional words to search')
     my_parser.add_argument('--color',
@@ -433,14 +436,24 @@ if __name__ == '__main__':
     else:
         # Parse -p, -P, -r parameters
         if args.path is not None:
-            paths_list.extend(args.path)
+            for i in args.path:
+                paths_list.extend(i)
         if args.Paths is not None:
-            paths_list.extend(args.Paths)
+            for i in args.Paths:
+                paths_list.extend(i)
         paths_list.append(None)
         if args.recursive is not None:
-            if len(args.recursive) == 1 and args.recursive[0] == None:
-                args.recursive[0] = "."
+            if None in args.recursive:
+                args.recursive[args.recursive.index(None)] = '.'
+                args.recursive = list(filter(None, args.recursive))
+
+            set_abs_paths = set()
             for rec_path in args.recursive:
+                rec_path_abs = os.path.abspath(rec_path)
+                if rec_path_abs in set_abs_paths:
+                    print("{}: Skipping duplicate path for -r parameter: '{}'".format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path), file=sys.stderr)
+                    continue
+                set_abs_paths.add(rec_path_abs)
                 # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
                 for r,d,f in os.walk(rec_path):
                     for file in sorted(f):
@@ -454,36 +467,50 @@ if __name__ == '__main__':
             print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
         else:
             extensions_list = list()
-            for i in args.extensions:
-                for j in i.split():
-                    extensions_list.append(j.lstrip('.'))
+            for ext_list in args.extensions:
+                for ext_multi in ext_list:
+                    for ext_i in ext_multi.split():
+                        extensions_list.append(ext_i.lstrip('.'))
 
-    logger.debug("extensions_list = {}".format(extensions_list))
-    logger.debug("paths_list      = {}".format(paths_list))
+    # Decide which file to use for searching and which
+    # not to based on command line parameters
+    paths_list_to_process = list()
     flag_show_directory_warning = True
     flag_check_extensions_list = False
     for input_file_path in paths_list:
         if input_file_path is None:
+            # not we start performing -x flag based filtering
+            # because from now on, the files fetched because
+            # of -r flag are present in the list "paths_list"
             flag_check_extensions_list = True
             continue
-        file_exists = os.path.exists(input_file_path)
-        if not (file_exists):
+        if not os.path.exists(input_file_path):
+            # "input_file_path" does NOT exist
             print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
             continue
-
         if os.path.isdir(input_file_path):
+            # "input_file_path" is a directory, NOT a file
             print('{}: Not scanning directory \'{}\''.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
             if flag_show_directory_warning:
                 print('{}: Use -r for recursively searching inside a directory'.format(my_colored('Warning', 'yellow', attrs=['bold'])), file=sys.stderr)
                 flag_show_directory_warning = False
             continue
-
         if flag_check_extensions_list and (extensions_list is not None):
             # -x parameter is used
             # Input "example.pdf" ---> ['example', '.pdf']
             # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
             if os.path.splitext(input_file_path)[-1][1:] not in extensions_list:
                 continue
+        paths_list_to_process.append(input_file_path)
+
+    logger.debug("extensions_list         = {}".format(extensions_list))
+    logger.debug("paths_list_to_process   = {}".format(paths_list_to_process))
+    set_abs_filepaths = set()
+    for input_file_path in paths_list_to_process:
+        input_file_path_abs = os.path.abspath(input_file_path)
+        if input_file_path_abs in set_abs_filepaths:
+            continue  # skip duplicate file during searching
+        set_abs_filepaths.add(input_file_path_abs)
 
         # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw, add_line_number)
         search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
@@ -497,7 +524,7 @@ if __name__ == '__main__':
                 print(my_colored(input_file_path, 'magenta', attrs=['bold']))
                 EXIT_CODE = 0
                 continue
-            if len(paths_list) > 1:
+            if len(paths_list_to_process) > 1:
                 print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
 
             if len(file_segments_matched) > 0:
@@ -508,7 +535,7 @@ if __name__ == '__main__':
                                 output_segment_separator=eval("'" + args.output_segment_separator + "'"),
                                 verbose=args.verbose)
 
-            if len(paths_list) > 1:
+            if len(paths_list_to_process) > 1:
                 print()
 
         gc.collect()
