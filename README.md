@@ -1,5 +1,5 @@
 # Context-Search-fms
-grep like utility to search text and PDF files for context and highlight using different colors
+grep like utility to search text, docx and PDF files for context and highlight using different colors
 
 
 ### Why use `fms` ?
@@ -64,7 +64,7 @@ optional arguments:
   --version                     show program's version number and exit
   -p [PATH], --path [PATH]      The path to the text file to search
   -P PATHS [PATHS ...], --Paths PATHS [PATHS ...]       The list of paths to the text files to search
-  -r [RECURSIVE], --recursive [RECURSIVE]               The list of paths to be used for recursive search
+  -r [RECURSIVE], --recursive [RECURSIVE]               The list of paths to be used for recursive search [default: .]
   -x [EXTENSIONS], --extensions [EXTENSIONS]            Files with these extensions only to be searched
                                                         for -r flag (Example Usage: -x md -x pdf OR -x "md pdf")
                                                         (Note: for "file.tar.gz" only "-x gz" should be used)
@@ -94,8 +94,8 @@ optional arguments:
   -O OUTPUT_SEGMENT_SEPARATOR, --output-segment-separator OUTPUT_SEGMENT_SEPARATOR
                                 String to separate the output segments which matched the pattern
   --cmd CMD                     Command to use to read the input file and to write the
-                                output to stdout. Insert {} in the command to insert file
-                                name, e.g. "pdftotext {} -"
+                                output to stdout. Insert {} in the command WITHOUT quotes to
+                                insert file name, e.g. "pdftotext {} -"
   -D, --debug                   Print debug information
 
 Enjoy the program :)

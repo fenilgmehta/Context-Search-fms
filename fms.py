@@ -52,12 +52,7 @@ def read_file(file_read_command: str,
               input_file_path: str,
               input_group_separator_raw: str,
               add_line_number: bool) -> List:
-    if file_read_command == 'cat':
-        status_code, output = subprocess.getstatusoutput("{} '{}'".format(file_read_command, input_file_path))
-    elif file_read_command == 'pdftotext':
-        status_code, output = subprocess.getstatusoutput("{} '{}' -".format(file_read_command, input_file_path))
-    else:
-        status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path + "'"))
+    status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path + "'"))
     output = output.rstrip()
 
     if status_code != 0:
@@ -158,11 +153,17 @@ def smart_search(file_read_command: str,
 
 
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
-    file_read_command: str = 'cat'
+    file_read_command: str = 'cat {}'
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
     elif pathlib.Path(input_file_path).suffix == '.pdf':
-        file_read_command = 'pdftotext'
+        file_read_command = 'pdftotext {} -'
+    elif pathlib.Path(input_file_path).suffix == '.docx':
+        # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
+        # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
+        file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g'"
+        # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
+        # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
     context_lines: int = parameters['C']
     ignore_case: bool = parameters['ignore_case']
 
@@ -248,12 +249,6 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
                 print(
                     ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
                 )
-                # print(
-                #     bash_run(
-                #         hl_command,
-                #         ' , '.join( [str(i) for i,j in words_list[2:]] )
-                #     )
-                # )
             else:
                 print(' , '.join( [str(i) for i,j in words_list[2:]] ))
         else:
@@ -288,7 +283,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.0'
+    my_parser.version = '2.1'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
@@ -310,7 +305,7 @@ if __name__ == '__main__':
                            action='append',
                            nargs='?',
                            type=str,
-                           help='The list of paths to be used for recursive search')
+                           help='The list of paths to be used for recursive search [default: .]')
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
@@ -384,7 +379,7 @@ if __name__ == '__main__':
                            action='store',
                            type=str,
                            help='Command to use to read the input file and to write the output to stdout. '
-                                'Insert {} in the command to insert file name, e.g. "pdftotext {} -"')
+                                'Insert {} in the command WITHOUT quotes to insert file name, e.g. "pdftotext {} -"')
     my_parser.add_argument('-D',
                            '--debug',
                            action='store_true',
@@ -443,6 +438,8 @@ if __name__ == '__main__':
             paths_list.extend(args.Paths)
         paths_list.append(None)
         if args.recursive is not None:
+            if len(args.recursive) == 1 and args.recursive[0] == None:
+                args.recursive[0] = "."
             for rec_path in args.recursive:
                 # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
                 for r,d,f in os.walk(rec_path):
@@ -459,8 +456,10 @@ if __name__ == '__main__':
             extensions_list = list()
             for i in args.extensions:
                 for j in i.split():
-                    extensions_list.extend(j.lstrip('.'))
+                    extensions_list.append(j.lstrip('.'))
 
+    logger.debug("extensions_list = {}".format(extensions_list))
+    logger.debug("paths_list      = {}".format(paths_list))
     flag_show_directory_warning = True
     flag_check_extensions_list = False
     for input_file_path in paths_list:
@@ -479,19 +478,19 @@ if __name__ == '__main__':
                 flag_show_directory_warning = False
             continue
 
-        if (extensions_list is not None) and flag_check_extensions_list:
+        if flag_check_extensions_list and (extensions_list is not None):
             # -x parameter is used
             # Input "example.pdf" ---> ['example', '.pdf']
             # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
             if os.path.splitext(input_file_path)[-1][1:] not in extensions_list:
                 continue
 
-        # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw)
+        # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw, add_line_number)
         search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
-        # search_parameters:Dict = parse_parameters({'Path': './Q and A.md', 'ignore_case': True, 'n': 5, 'w': ['an[a-z]', 'what', 'is', 'o[a-z]'], 'g': None})
-        # search_parameters:Dict = parse_parameters({'Path': './Q and A.md', 'ignore_case': True, 'n': 1, 'w': None, 'g': 'an'})
 
-        # print('DEBUG: words_list = ' + str(search_parameters[3]))
+        for var_value,var_name in zip(search_parameters, ["file_read_command", "input_file_path", "context_lines", "ignore_case", "uniq_words_list", "input_group_separator_raw", "add_line_number"]):
+            logger.debug("{:<20s} = {}".format(var_name, var_value))
+
         file_segments_matched: List = smart_search(*search_parameters)
         if (args.Q == False) or (len(file_segments_matched) > 0):
             if args.files_with_matches:  # If this is true, then Q flag is set to avoid false +ve
@@ -514,6 +513,7 @@ if __name__ == '__main__':
 
         gc.collect()
     pass
+    logger.debug("EXIT_CODE = {}".format(EXIT_CODE))
     sys.exit(EXIT_CODE)
     # Both the EXAMPLE's will give the same result
     # python c-smart-search.py -C 5 -i -g 'an[a-z] what is o[a-z] vms' "./Q and A.md"
