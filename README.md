@@ -56,7 +56,8 @@ fms.py --help
 
 ```
 usage: fms.py [-h] [--version]
-              [-p PATH [PATH ...]] [-P PATHS [PATHS ...]] [-r [RECURSIVE]] [-x EXTENSIONS [EXTENSIONS ...]]
+              [-p PATH [PATH ...]] [-P PATHS [PATHS ...]]
+              [-r [RECURSIVE]] [-x EXTENSIONS [EXTENSIONS ...]]
               [-i] [-l] [-C --context]
               [-g --group] [-w --word [--word ...]] [-W --Word [--Word ...]]
               [--color COLOR] [-n] [-v] [-Q]
