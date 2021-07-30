@@ -7,33 +7,41 @@ grep like utility to search text, docx and PDF files for context and highlight u
 Has it ever happened that you know a few words of a line/paragraph but do not know in which document or in which page of the document you had read it ? If yes, then use `fms`. It will help you find the line/paragraph/document in a jiffy using Extended Regular Expression ([Regexp Syntax Summary](https://www.greenend.org.uk/rjk/tech/regexp.html))
 
 
-### Installation Steps and Requirements to use `fms`
+### Installation Steps to use `fms`
 
-- https://github.com/alttch/neotermcolor/
-    ```bash
-    pip install neotermcolor
-    ```
+```bash
+# CONFIGURATIONS
+# Create and enter the directory when "fms" and its
+# dependencies will be downloaded and stored
+INSTALL_DIR="${HOME}/bin"
+# Modify this based on your shell
+SHELL_INITIALIZATION="${HOME}/.bashrc"  # Use ".zshrc" for zsh
 
-- https://github.com/mbornet-hl/hl
-    - Its binary can be downloaded from [https://github.com/mbornet-hl/hl/raw/master/hl](https://github.com/mbornet-hl/hl/raw/master/hl)
-        ```bash
-        wget https://github.com/mbornet-hl/hl/raw/master/hl
-        ```
-    - Add its location to `PATH`
-        ```bash
-        PATH="$PATH:path_to_hl"
-        ```
+# Activate the right environment in virtualenv/conda
+# conda activate base
 
-- Download `fms.py` and add it to `PATH`
-    ```bash
-    wget https://github.com/fenilgmehta/Context-Search-fms/raw/main/fms.py
-    PATH="$PATH:path_to_fms"
-    ```
+mkdir "${INSTALL_DIR}"
+cd "${INSTALL_DIR}"
 
-- Enjoy :)
-    ```bash
-    fms.py --help
-    ```
+# https://github.com/alttch/neotermcolor/
+pip install neotermcolor
+# https://github.com/mbornet-hl/hl
+wget https://github.com/mbornet-hl/hl/raw/master/hl
+chmod +x hl
+
+# Download fms
+wget https://github.com/fenilgmehta/Context-Search-fms/raw/main/fms.py
+chmod +x fms.py
+
+# Add ${PATH} to shell initialization files
+PATH="${PATH}:$(pwd)"
+echo "\${PATH}:$(pwd)" >> ${SHELL_INITIALIZATION}
+alias fms=${INSTALL_DIR}/fms.py
+echo "alias fms=${INSTALL_DIR}/fms.py" >> ${SHELL_INITIALIZATION}
+
+# Enjoy :)
+fms --help
+```
 
 
 ### Example
@@ -41,6 +49,13 @@ Has it ever happened that you know a few words of a line/paragraph but do not kn
   ![Sample 1](./imgs/sample_01.png)
 - `fms -in -C 3 -p FmsStory.md -I '\n\n\n' -O'---------' -w 'multi(-)?word' -w 'search'`
   ![Sample 2](./imgs/sample_02.png)
+- Other examples of simple highlighting
+  ```sh
+  ps -e | fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
+  ip a | fms -C100000 -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>' -W '(^[0-9]+: )(\d|\w+)'
+  ifconfig | fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W '(errors|dropped|overruns):[^0][0-9]*'
+  echo "abcdefghijklmnopqrstuvwxyz" | fms -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
+  ```
 
 
 ### Usage
@@ -57,7 +72,7 @@ fms.py --help
 ```
 usage: fms.py [-h] [--version]
               [-p PATH [PATH ...]] [-P PATHS [PATHS ...]]
-              [-r [RECURSIVE]] [-x EXTENSIONS [EXTENSIONS ...]]
+              [-r [RECURSIVE]] [-X EXTEXCLUDE [EXTEXCLUDE ...]] [-x EXTENSIONS [EXTENSIONS ...]]
               [-i] [-l] [-C --context]
               [-g --group] [-w --word [--word ...]] [-W --Word [--Word ...]]
               [--color COLOR] [-n] [-v] [-Q]
@@ -75,46 +90,46 @@ optional arguments:
   -P PATHS [PATHS ...], --Paths PATHS [PATHS ...]
                         The list of paths to the text files to search
   -r [RECURSIVE], --recursive [RECURSIVE]
-                        The list of paths to be used for recursive search
-                        [default: .]
+                        The list of paths to be used for recursive search [default: .]
+  -X EXTEXCLUDE [EXTEXCLUDE ...], --extexclude EXTEXCLUDE [EXTEXCLUDE ...]
+                        Files with these extensions to be excluded from being searched for
+                        -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for
+                        "file.tar.gz" only "-X gz" should be used)-X gets priority over -x
   -x EXTENSIONS [EXTENSIONS ...], --extensions EXTENSIONS [EXTENSIONS ...]
-                        Files with these extensions only to be searched for -r
-                        flag (Example Usage: -x md -x pdf OR -x "md pdf")
-                        (Note: for "file.tar.gz" only "-x gz" should be used)
+                        Files with these extensions only to be searched for -r flag (Example
+                        Usage: -x md -x pdf OR -x "md pdf") (Note: for "file.tar.gz" only
+                        "-x gz" should be used)
   -i, --ignore-case     Ignore case while searching
   -l, --files-with-matches
-                        Supress normal output and just print the file names
-                        which satisfy the search query
+                        Supress normal output and just print the file names which satisfy
+                        the search query
   -C --context          Number of lines in the context [default: 10]
-  -g --group            Any white space separated group of words to search
-                        (this gets priority over -w parameter)
+  -g --group            Any white space separated group of words to search (this gets
+                        priority over -w parameter)
   -w --word [--word ...]
                         Word to search
   -W --Word [--Word ...]
                         Optional words to search
   --color COLOR         Can either be auto, always or never [default: auto]
-  -n, --line-number     Print line number (Note: printing line numbers may
-                        cause problem -I parameter and REGEX which use "^")
-  -v, --verbose         Print expression highlighted and number of segments
-                        which satisfied the search conditions (Bug: content
-                        printed because of this flag will be colored for
-                        --color=auto even if the output is not directed to a
-                        TTY)
-  -Q                    Do not print anything for files in which no results
-                        found
+  -n, --line-number     Print line number (Note: printing line numbers may cause problem -I
+                        parameter and REGEX which use "^")
+  -v, --verbose         Print expression highlighted and number of segments which satisfied
+                        the search conditions (Bug: content printed because of this flag
+                        will be colored for --color=auto even if the output is not directed
+                        to a TTY)
+  -Q                    Do not print anything for files in which no results found
   -I INPUT_RECORD_SEPARATOR, --input-record-separator INPUT_RECORD_SEPARATOR
-                        String to separate the input based on the record
-                        separator. This input will be evaluated as python
-                        string. So, to use newline followed by two hyphen,
-                        just write "\n--". Note: input will be evaluated using
-                        python syntax. Hence, no need to make bash correctly
+                        String to separate the input based on the record separator. This
+                        input will be evaluated as python string. So, to use newline
+                        followed by two hyphen, just write "\n--". Note: input will be
+                        evaluated using python syntax. Hence, no need to make bash correctly
                         interpret special characters such as "\n" or "\t"
   -O OUTPUT_SEGMENT_SEPARATOR, --output-segment-separator OUTPUT_SEGMENT_SEPARATOR
-                        String to separate the output segments which matched
-                        the pattern
-  --cmd CMD             Command to use to read the input file and to write the
-                        output to stdout. Insert {} in the command WITHOUT
-                        quotes to insert file name, e.g. "pdftotext {} -"
+                        String to separate the output segments which matched the pattern
+                        [default: --]
+  --cmd CMD             Command to use to read the input file and to write the output to
+                        stdout. Insert {} in the command WITHOUT quotes to insert file name,
+                        e.g. "pdftotext {} -"
   -D, --debug           Print debug information
 
 Enjoy the program :)
