@@ -12,11 +12,8 @@ import pathlib
 import math
 import logging
 
-# This   # echo "abcdefghijklmnopqrstuvwxyz" | c-smart-search.sh -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
-# Link 1 # echo "abcdefghijklmnopqrstuvwxyz" | rpen.py -k a b c d e f g h i j k l n o p q r s t u v w x y z
-# Link 2 # echo "abcdefghijklmnopqrstuvwxyz" | h a b c d e f g h i j k l n
 
-# 26 Apr 2021: REFER
+# Multiple Colour Highlighting
 #     --> https://stackoverflow.com/questions/17236005/grep-output-with-multiple-colors
 #           --> 1. https://github.com/mbornet-hl/hl
 #           --> 2. https://github.com/paoloantinori/hhighlighter
@@ -89,7 +86,7 @@ def read_file(file_read_command: str,
                 # TODO: This needs to be fixed. It can not handle all splits when "-n" parameter is there
                 # TODO: Check if -2 is required or -1 is required
                 # NOTE: Previously it was -2
-                # Last new line need not be replaced
+                # NOTE: Last new line need not be replaced
                 input_group_separator = eval("'" + input_group_separator_raw[:-1].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-1:] + "'")
                 # input_group_separator = eval("'" + input_group_separator_raw.replace(r'\n', r'\n\\d+: ') + "'")
             else:
@@ -309,6 +306,13 @@ if __name__ == '__main__':
                            nargs='?',
                            type=str,
                            help='The list of paths to be used for recursive search [default: .]')
+    my_parser.add_argument('-X',
+                           '--extexclude',
+                           action='append',
+                           nargs='+',
+                           type=str,
+                           help='Files with these extensions to be excluded from being searched for -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be used)'
+                                '-X gets priority over -x')
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
@@ -377,7 +381,7 @@ if __name__ == '__main__':
                            action='store',
                            type=str,
                            default='--',
-                           help='String to separate the output segments which matched the pattern')
+                           help='String to separate the output segments which matched the pattern [default: --]')
     my_parser.add_argument('--cmd',
                            action='store',
                            type=str,
@@ -462,6 +466,16 @@ if __name__ == '__main__':
 
     # Parse -x parameter
     extensions_list: List = None
+    extexclude_list: List = None
+    if args.extexclude is not None:
+        if (args.recursive is None) and (args.Paths is None):
+            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-X flag will be ignored because -r and -P flag are not used'))
+        else:
+            extexclude_list = list()
+            for ext_list in args.extexclude:
+                for ext_multi in ext_list:
+                    for ext_i in ext_multi.split():
+                        extexclude_list.append(ext_i.lstrip('.'))
     if args.extensions is not None:
         if args.recursive is None:
             print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
@@ -471,6 +485,10 @@ if __name__ == '__main__':
                 for ext_multi in ext_list:
                     for ext_i in ext_multi.split():
                         extensions_list.append(ext_i.lstrip('.'))
+            if extexclude_list is not None:
+                for ext in extensions_list:
+                    if ext in extexclude_list:
+                        print('{}: extention "{}" {} "-x {}"'.format(my_colored('Warning', 'yellow', attrs=['bold']), ext, 'is used with both -x and -X flag. So, ignoring', ext))
 
     # Decide which file to use for searching and which
     # not to based on command line parameters
@@ -495,15 +513,21 @@ if __name__ == '__main__':
                 print('{}: Use -r for recursively searching inside a directory'.format(my_colored('Warning', 'yellow', attrs=['bold'])), file=sys.stderr)
                 flag_show_directory_warning = False
             continue
+
+        # Input "example.pdf" ---> ['example', '.pdf']
+        # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
+        if flag_check_extensions_list and (extexclude_list is not None):
+            # -X parameter is used
+            if os.path.splitext(input_file_path)[-1][1:] in extexclude_list:
+                continue
         if flag_check_extensions_list and (extensions_list is not None):
             # -x parameter is used
-            # Input "example.pdf" ---> ['example', '.pdf']
-            # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
             if os.path.splitext(input_file_path)[-1][1:] not in extensions_list:
                 continue
         paths_list_to_process.append(input_file_path)
 
     logger.debug("extensions_list         = {}".format(extensions_list))
+    logger.debug("extexclude_list         = {}".format(extexclude_list))
     logger.debug("paths_list_to_process   = {}".format(paths_list_to_process))
     set_abs_filepaths = set()
     for input_file_path in paths_list_to_process:
@@ -542,13 +566,15 @@ if __name__ == '__main__':
     pass
     logger.debug("EXIT_CODE = {}".format(EXIT_CODE))
     sys.exit(EXIT_CODE)
-    # Both the EXAMPLE's will give the same result
-    # python c-smart-search.py -C 5 -i -g 'an[a-z] what is o[a-z] vms' "./Q and A.md"
-    # python c-smart-search.py -C 5 -i -w 'an[a-z]' -w 'what' -w 'is' -w 'o[a-z]' -w 'vms' "./Q and A.md"
 
-    # my     ifconfig | c-fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W '(errors|dropped|overruns):[^0][0-9]*'
-    # sof    ifconfig | c-fms -C 1000 -W '^(eth|(vir)?br|vnet)[0-9.]*:[0-9]+\>' -W '^(eth|(vir)?br|vnet)[0-9.]*\.[0-9]+\>' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' (errors|dropped|overruns):[^0][0-9]*'
-    # github ifconfig | c-fms -C 1000 -W 'inet addr:([0-9]{1,3}(\.[0-9]{1,3}){3})' -W '^((eth|(vir)?br|vnet)[0-9.]*:[0-9]+)\>' -W '^((eth|(vir)?br|vnet)[0-9.]*\.[0-9]+)\>' -W '(([0-9a-f]{2}:){5}[0-9a-f]{2})' -W '(\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>)' -W '(^(eth|(vir)?br|vnet)[0-9.:]*)\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' ((errors|dropped|overruns):[^0][0-9]*)'
+    # BEST WORKING
+    # ps -e | fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
+    # ip a | fms -C100000 -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>' -W '(^[0-9]+: )(\d|\w+)'
+    # my     ifconfig | fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W '(errors|dropped|overruns):[^0][0-9]*'
+    # sof    ifconfig | fms -C 1000 -W '^(eth|(vir)?br|vnet)[0-9.]*:[0-9]+\>' -W '^(eth|(vir)?br|vnet)[0-9.]*\.[0-9]+\>' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' (errors|dropped|overruns):[^0][0-9]*'
+    # github ifconfig | fms -C 1000 -W 'inet addr:([0-9]{1,3}(\.[0-9]{1,3}){3})' -W '^((eth|(vir)?br|vnet)[0-9.]*:[0-9]+)\>' -W '^((eth|(vir)?br|vnet)[0-9.]*\.[0-9]+)\>' -W '(([0-9a-f]{2}:){5}[0-9a-f]{2})' -W '(\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>)' -W '(^(eth|(vir)?br|vnet)[0-9.:]*)\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W ' ((errors|dropped|overruns):[^0][0-9]*)'
 
-    # ip a | c-fms -C 1000 -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>'
-    # ps -e | c-fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
+    # This   # echo "abcdefghijklmnopqrstuvwxyz" | fms -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
+    # Link 1 # echo "abcdefghijklmnopqrstuvwxyz" | rpen.py -k a b c d e f g h i j k l n o p q r s t u v w x y z
+    # Link 2 # echo "abcdefghijklmnopqrstuvwxyz" | h a b c d e f g h i j k l n
+
