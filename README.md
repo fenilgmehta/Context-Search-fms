@@ -35,7 +35,7 @@ chmod +x fms.py
 
 # Add ${PATH} to shell initialization files
 PATH="${PATH}:$(pwd)"
-echo "\${PATH}:$(pwd)" >> ${SHELL_INITIALIZATION}
+echo "PATH=\"\${PATH}:$(pwd)\"" >> ${SHELL_INITIALIZATION}
 alias fms=${INSTALL_DIR}/fms.py
 echo "alias fms=${INSTALL_DIR}/fms.py" >> ${SHELL_INITIALIZATION}
 
