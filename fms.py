@@ -49,7 +49,10 @@ def read_file(file_read_command: str,
               input_file_path: str,
               input_group_separator_raw: str,
               add_line_number: bool) -> List:
-    status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path + "'"))
+    # Handle single quotes in file name
+    # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
+    # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
+    status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'"))
     output = output.rstrip()
 
     if status_code != 0:
@@ -150,11 +153,11 @@ def smart_search(file_read_command: str,
 
 
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
-    file_read_command: str = 'cat {}'
+    file_read_command: str = r'cat {}'
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
     elif pathlib.Path(input_file_path).suffix == '.pdf':
-        file_read_command = 'pdftotext {} -'
+        file_read_command = r'pdftotext {} -'
     elif pathlib.Path(input_file_path).suffix == '.docx':
         # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
         # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
@@ -167,7 +170,8 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     words_list: List = list()
     if parameters['g'] is not None:
         for i in parameters['g']:
-            words_list.extend(i.split())
+            words_list.extend(list(filter(lambda x: x, i.split('  '))))
+            # words_list.extend(i.split())
     if parameters['w'] is not None:
         for word in parameters['w']:
             words_list.extend(word)
@@ -283,7 +287,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.2'
+    my_parser.version = '2.3'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
@@ -293,26 +297,24 @@ if __name__ == '__main__':
                            action='append',
                            nargs='+',
                            type=str,
-                           help='The path to the text file to search')
-    my_parser.add_argument('-P',
-                           '--Paths',
-                           action='store',
-                           nargs='+',
-                           type=str,
-                           help='The list of paths to the text files to search')
+                           help='The path to the text file to search (supports glob)')
     my_parser.add_argument('-r',
                            '--recursive',
                            action='append',
                            nargs='?',
                            type=str,
                            help='The list of paths to be used for recursive search [default: .]')
+    # TODO: https://stackoverflow.com/questions/2472221/how-to-check-if-a-file-contains-plain-text/2472243
+    # Add -m options for mime type
+    DEFAULT_EXTEXCLUDE_LIST: str = 'zip tar gz exe'
     my_parser.add_argument('-X',
                            '--extexclude',
                            action='append',
-                           nargs='+',
+                           nargs='*',
                            type=str,
-                           help='Files with these extensions to be excluded from being searched for -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be used)'
-                                '-X gets priority over -x')
+                           help='Files with these extensions to be excluded from being searched for -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be used) '
+                                '(Note: -X gets priority over -x) '
+                                '(Default exlude list will be used if not parameters are passed: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
@@ -339,7 +341,7 @@ if __name__ == '__main__':
                            action='append',
                            # nargs='?',
                            type=str,
-                           help='Any white space separated group of words to search (this gets priority over -w parameter)')
+                           help='Any TWO white space separated group of words to search (this gets priority over -w parameter)')
     my_parser.add_argument('-w',
                            metavar='--word',
                            action='append',
@@ -435,15 +437,12 @@ if __name__ == '__main__':
         args.Q = True
 
     paths_list: List = list()
-    if (args.path is None) and (args.Paths is None) and (args.recursive is None):
+    if (args.path is None) and (args.recursive is None):
         paths_list=['/dev/stdin']
     else:
-        # Parse -p, -P, -r parameters
+        # Parse -p, -r parameters
         if args.path is not None:
             for i in args.path:
-                paths_list.extend(i)
-        if args.Paths is not None:
-            for i in args.Paths:
                 paths_list.extend(i)
         paths_list.append(None)
         if args.recursive is not None:
@@ -468,14 +467,18 @@ if __name__ == '__main__':
     extensions_list: List = None
     extexclude_list: List = None
     if args.extexclude is not None:
-        if (args.recursive is None) and (args.Paths is None):
-            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-X flag will be ignored because -r and -P flag are not used'))
+        if (args.recursive is None):
+            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-X flag will be ignored because -r flag is not used'))
         else:
             extexclude_list = list()
-            for ext_list in args.extexclude:
-                for ext_multi in ext_list:
-                    for ext_i in ext_multi.split():
-                        extexclude_list.append(ext_i.lstrip('.'))
+            if len(args.extexclude) == 1 and len(args.extexclude[0]) == 0:
+                # use default exclude list
+                extexclude_list.extend(DEFAULT_EXTEXCLUDE_LIST.split())
+            else:
+                for ext_list in args.extexclude:
+                    for ext_multi in ext_list:
+                        for ext_i in ext_multi.split():
+                            extexclude_list.append(ext_i.lstrip('.'))
     if args.extensions is not None:
         if args.recursive is None:
             print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
@@ -536,13 +539,20 @@ if __name__ == '__main__':
             continue  # skip duplicate file during searching
         set_abs_filepaths.add(input_file_path_abs)
 
-        # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw, add_line_number)
-        search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
+        try:
+            # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw, add_line_number)
+            search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
 
-        for var_value,var_name in zip(search_parameters, ["file_read_command", "input_file_path", "context_lines", "ignore_case", "uniq_words_list", "input_group_separator_raw", "add_line_number"]):
-            logger.debug("{:<20s} = {}".format(var_name, var_value))
+            for var_value,var_name in zip(search_parameters, ["file_read_command", "input_file_path", "context_lines", "ignore_case", "uniq_words_list", "input_group_separator_raw", "add_line_number"]):
+                logger.debug("{:<20s} = {}".format(var_name, var_value))
 
-        file_segments_matched: List = smart_search(*search_parameters)
+            file_segments_matched: List = smart_search(*search_parameters)
+        except Exception as e:
+            logger.error('File ==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+            logger.error(e)
+            print()
+            continue
+
         if (args.Q == False) or (len(file_segments_matched) > 0):
             if args.files_with_matches:  # If this is true, then Q flag is set to avoid false +ve
                 print(my_colored(input_file_path, 'magenta', attrs=['bold']))
