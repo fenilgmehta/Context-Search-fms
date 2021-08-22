@@ -170,6 +170,10 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     words_list: List = list()
     if parameters['g'] is not None:
         for i in parameters['g']:
+            words_list.extend(list(filter(lambda x: x, i.split())))
+            # words_list.extend(i.split())
+    if parameters['g2'] is not None:
+        for i in parameters['g2']:
             words_list.extend(list(filter(lambda x: x, i.split('  '))))
             # words_list.extend(i.split())
     if parameters['w'] is not None:
@@ -287,7 +291,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.3'
+    my_parser.version = '2.4'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
@@ -301,12 +305,12 @@ if __name__ == '__main__':
     my_parser.add_argument('-r',
                            '--recursive',
                            action='append',
-                           nargs='?',
+                           nargs='*',
                            type=str,
                            help='The list of paths to be used for recursive search [default: .]')
     # TODO: https://stackoverflow.com/questions/2472221/how-to-check-if-a-file-contains-plain-text/2472243
     # Add -m options for mime type
-    DEFAULT_EXTEXCLUDE_LIST: str = 'zip tar gz exe'
+    DEFAULT_EXTEXCLUDE_LIST: str = 'jpeg jpg png zip tar gz exe mp4 mkv ctb ctb~ ctb~~ ctb~~~'
     my_parser.add_argument('-X',
                            '--extexclude',
                            action='append',
@@ -314,7 +318,7 @@ if __name__ == '__main__':
                            type=str,
                            help='Files with these extensions to be excluded from being searched for -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be used) '
                                 '(Note: -X gets priority over -x) '
-                                '(Default exlude list will be used if not parameters are passed: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
+                                '(Default exlude list will be used if not parameters are passed, or "defaults" is passed as a parameter: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
@@ -338,6 +342,12 @@ if __name__ == '__main__':
     #       shell to do any text processing on their query
     my_parser.add_argument('-g',
                            metavar='--group',
+                           action='append',
+                           # nargs='?',
+                           type=str,
+                           help='Any ONE white space separated group of words to search (this gets priority over -w parameter)')
+    my_parser.add_argument('-g2',
+                           metavar='--group2',
                            action='append',
                            # nargs='?',
                            type=str,
@@ -402,7 +412,8 @@ if __name__ == '__main__':
     else:
         logger.setLevel(logging.INFO)
     logger_file_handler = logging.FileHandler('/dev/stderr')
-    logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
+    logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
+    # logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
     logger_file_handler.setFormatter(logger_formatter)
     logger.addHandler(logger_file_handler)
 
@@ -411,16 +422,20 @@ if __name__ == '__main__':
     logger.handlers[0].flush()  # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
 
     if str(args.color).lower() not in ('auto', 'always', 'never'):
-        logger.warning('Invalid parameter --color={}'.format(args.color))
+        logger.warning('{}: Invalid parameter --color={}'.format(my_colored('Warning', 'yellow', attrs=['bold']), args.color))
+        logger.warning('         Using --color=auto'.format(args.color))
+        args.color = 'auto'
 
+    neotermcolor.tty_aware = False
     if str(args.color).lower() == 'auto':
-        neotermcolor.tty_aware = True
-        COLOR_OUTPUT_TEXT = True
+        # REFER: https://github.com/alttch/neotermcolor/blob/master/neotermcolor/__init__.py
+        #        Search "tty_aware" in that file
+        COLOR_OUTPUT_TEXT = (os.getenv('ANSI_COLORS_DISABLED') is None) and \
+                            (sys.stdout.isatty() and sys.stderr.isatty())
     else:
-        neotermcolor.tty_aware = False
         if str(args.color).lower() == 'always':
             COLOR_OUTPUT_TEXT = True
-        else:
+        else:  # 'never'
             COLOR_OUTPUT_TEXT = False
 
     # print('DEBUG: args       = ' + str(args))
@@ -446,21 +461,22 @@ if __name__ == '__main__':
                 paths_list.extend(i)
         paths_list.append(None)
         if args.recursive is not None:
-            if None in args.recursive:
-                args.recursive[args.recursive.index(None)] = '.'
-                args.recursive = list(filter(None, args.recursive))
-
+            if [] in args.recursive:
+                args.recursive[args.recursive.index([])] = '.'
+                args.recursive = list(filter(lambda x: bool(len(x)), args.recursive))
+            logger.debug("args.recursive = {}".format(args.recursive))
             set_abs_paths = set()
-            for rec_path in args.recursive:
-                rec_path_abs = os.path.abspath(rec_path)
-                if rec_path_abs in set_abs_paths:
-                    print("{}: Skipping duplicate path for -r parameter: '{}'".format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path), file=sys.stderr)
-                    continue
-                set_abs_paths.add(rec_path_abs)
-                # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
-                for r,d,f in os.walk(rec_path):
-                    for file in sorted(f):
-                        paths_list.append(os.path.join(r, file))
+            for rec_paths_list in args.recursive:
+                for rec_path in rec_paths_list:
+                    rec_path_abs = os.path.abspath(rec_path)
+                    if rec_path_abs in set_abs_paths:
+                        print("{}: Skipping duplicate path for -r parameter: '{}'".format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path), file=sys.stderr)
+                        continue
+                    set_abs_paths.add(rec_path_abs)
+                    # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
+                    for r,d,f in os.walk(rec_path):
+                        for file in sorted(f):
+                            paths_list.append(os.path.join(r, file))
         pass
 
     # Parse -x parameter
@@ -479,6 +495,9 @@ if __name__ == '__main__':
                     for ext_multi in ext_list:
                         for ext_i in ext_multi.split():
                             extexclude_list.append(ext_i.lstrip('.'))
+                if "defaults" in extexclude_list:
+                    extexclude_list.remove("defaults")
+                    extexclude_list.extend(DEFAULT_EXTEXCLUDE_LIST.split())
     if args.extensions is not None:
         if args.recursive is None:
             print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
