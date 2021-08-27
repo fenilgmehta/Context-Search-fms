@@ -1,5 +1,5 @@
 # Context-Search-fms
-grep like utility to search text, docx and PDF files for context and highlight using different colors
+grep like utility to search text, docx, pptx and PDF files for context and highlight using different colors
 
 
 ### Why use `fms` ?
@@ -71,10 +71,10 @@ fms.py --help
 
 ```
 usage: fms.py [-h] [--version]
-              [-p PATH [PATH ...]] [-P PATHS [PATHS ...]]
-              [-r [RECURSIVE]] [-X EXTEXCLUDE [EXTEXCLUDE ...]] [-x EXTENSIONS [EXTENSIONS ...]]
+              [-p PATH [PATH ...]] [-r [RECURSIVE [RECURSIVE ...]]]
+              [-X [EXTEXCLUDE [EXTEXCLUDE ...]]] [-x EXTENSIONS [EXTENSIONS ...]]
               [-i] [-l] [-C --context]
-              [-g --group] [-w --word [--word ...]] [-W --Word [--Word ...]]
+              [-g --group] [-g2 --group2] [-w --word [--word ...]] [-W --Word [--Word ...]]
               [--color COLOR] [-n] [-v] [-Q]
               [-I INPUT_RECORD_SEPARATOR] [-O OUTPUT_SEGMENT_SEPARATOR]
               [--cmd CMD]
@@ -86,15 +86,16 @@ optional arguments:
   -h, --help            show this help message and exit
   --version             show program's version number and exit
   -p PATH [PATH ...], --path PATH [PATH ...]
-                        The path to the text file to search
-  -P PATHS [PATHS ...], --Paths PATHS [PATHS ...]
-                        The list of paths to the text files to search
-  -r [RECURSIVE], --recursive [RECURSIVE]
+                        The path to the text file to search (supports glob)
+  -r [RECURSIVE [RECURSIVE ...]], --recursive [RECURSIVE [RECURSIVE ...]]
                         The list of paths to be used for recursive search [default: .]
-  -X EXTEXCLUDE [EXTEXCLUDE ...], --extexclude EXTEXCLUDE [EXTEXCLUDE ...]
+  -X [EXTEXCLUDE [EXTEXCLUDE ...]], --extexclude [EXTEXCLUDE [EXTEXCLUDE ...]]
                         Files with these extensions to be excluded from being searched for
                         -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for
-                        "file.tar.gz" only "-X gz" should be used)-X gets priority over -x
+                        "file.tar.gz" only "-X gz" should be used) (Note: -X gets priority
+                        over -x) (Default exlude list will be used if not parameters are
+                        passed, or "defaults" is passed as a parameter: jpeg jpg png zip tar
+                        gz exe mp4 mkv ctb ctb~ ctb~~ ctb~~~)
   -x EXTENSIONS [EXTENSIONS ...], --extensions EXTENSIONS [EXTENSIONS ...]
                         Files with these extensions only to be searched for -r flag (Example
                         Usage: -x md -x pdf OR -x "md pdf") (Note: for "file.tar.gz" only
@@ -104,7 +105,9 @@ optional arguments:
                         Supress normal output and just print the file names which satisfy
                         the search query
   -C --context          Number of lines in the context [default: 10]
-  -g --group            Any white space separated group of words to search (this gets
+  -g --group            Any ONE white space separated group of words to search (this gets
+                        priority over -w parameter)
+  -g2 --group2          Any TWO white space separated group of words to search (this gets
                         priority over -w parameter)
   -w --word [--word ...]
                         Word to search

@@ -5,12 +5,13 @@ import os
 import sys
 from itertools import cycle
 import subprocess
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable, Union
 import neotermcolor
 import re
 import pathlib
 import math
 import logging
+import traceback
 
 
 # Multiple Colour Highlighting
@@ -45,14 +46,17 @@ def my_colored(text, color=None, on_color=None, attrs=None):
     return text
 
 
-def read_file(file_read_command: str,
+def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
               input_file_path: str,
               input_group_separator_raw: str,
               add_line_number: bool) -> List:
-    # Handle single quotes in file name
-    # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
-    # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
-    status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'"))
+    if type(file_read_command) == str:
+        # Handle single quotes in file name
+        # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
+        # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
+        status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'"))
+    else:
+        status_code, output = file_read_command(input_file_path)
     output = output.rstrip()
 
     if status_code != 0:
@@ -74,12 +78,13 @@ def read_file(file_read_command: str,
         line_count = output.count('\n') + 1  # This line count is equal to what Vim shows
         max_digit_count = int(math.log10(line_count)) + 1
         global GROUP_SEPARATOR
-        # "-F" parameter is used to avoid un-necessary work by awk
+        # "-F" parameter is used to avoid un-necessary work by awk to split each line based on spaces
         output_numbered = subprocess.run(['awk', '-F', GROUP_SEPARATOR, r'{printf("%0' + str(max_digit_count) + r'd: %s\n", NR, $0)}', '-'],
                                         stdout=subprocess.PIPE,
                                         text=True,
                                         input=output).stdout
         output_numbered = str(output_numbered)
+        # print(output_numbered)
         if input_group_separator_raw is not None:
             if r'\n' in input_group_separator_raw:
                 # At present, -n and -I work together properly only if -I has only
@@ -93,7 +98,9 @@ def read_file(file_read_command: str,
                 input_group_separator = eval("'" + input_group_separator_raw[:-1].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-1:] + "'")
                 # input_group_separator = eval("'" + input_group_separator_raw.replace(r'\n', r'\n\\d+: ') + "'")
             else:
-                input_group_separator = eval("'" + input_group_separator_raw + "'")
+                # TODO: check this
+                # input_group_separator = eval("'" + input_group_separator_raw + "'")
+                input_group_separator = eval(r"'\n\\d+: " + input_group_separator_raw + "'")
 
             return re.split(
                 pattern=input_group_separator,
@@ -153,6 +160,7 @@ def smart_search(file_read_command: str,
 
 
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
+    input_group_separator_raw = None
     file_read_command: str = r'cat {}'
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
@@ -164,6 +172,33 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g'"
         # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
         # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
+    elif pathlib.Path(input_file_path).suffix == '.pptx':
+        # REFER: https://superuser.com/questions/661315/tools-to-extract-text-from-powerpoint-pptx-in-linux
+        PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
+        def read_file_pptx(input_file_path: str):
+            cmd_slides_list = r"unzip -l '" + input_file_path.replace(r"'", r"'\''") + r"' 'ppt/slides/slide*.xml' | awk '{print $4}' | grep 'ppt/slides/slide.*' --color=never | sort -V"
+            cmd_read_slide = r"unzip -p '" + input_file_path.replace(r"'", r"'\''") + r"' '{}'"
+            status_code, output = subprocess.getstatusoutput(cmd_slides_list)
+            if status_code != 0:
+                return status_code, ''
+            out_slides_list = output.split()
+            output = ''
+            for slide_path in out_slides_list[:3]:
+                status_code, out_slide = subprocess.getstatusoutput(cmd_read_slide.format(slide_path, slide_path) + r" | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)' ; echo '" + PPT_GROUP_SEPARATOR + r"\n'")
+                logger.debug(f'{out_slide=}')
+                if status_code != 0:
+                    output += 'Unable to read slide: {}\n{}\n'.format(slide_path, PPT_GROUP_SEPARATOR)
+                else:
+                    output += my_colored('Slide ' + slide_path[16:-4], 'white', attrs='bold') + '\n' + out_slide
+            return 0, output
+        file_read_command = read_file_pptx
+        input_group_separator_raw = PPT_GROUP_SEPARATOR
+        # Problem with below command is that it does not read the slides in correct order
+        # file_read_command = r"unzip -p {} 'ppt/slides/slide*.xml' | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)'"
+    # elif pathlib.Path(input_file_path).suffix == '.odt':
+    #     # REFER: https://stackoverflow.com/questions/54293459/find-a-string-in-a-list-of-odt-files-and-print-the-matching-lines
+    #     pass
+
     context_lines: int = parameters['C']
     ignore_case: bool = parameters['ignore_case']
 
@@ -196,7 +231,8 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         else:
             uniq_words_list.append(i)
 
-    input_group_separator_raw = parameters['input_record_separator']
+    if input_group_separator_raw is None:
+        input_group_separator_raw = parameters['input_record_separator']
     return file_read_command, input_file_path, context_lines, ignore_case, \
            uniq_words_list, input_group_separator_raw, add_line_number
 
@@ -569,6 +605,7 @@ if __name__ == '__main__':
         except Exception as e:
             logger.error('File ==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
             logger.error(e)
+            logger.error(traceback.format_exc())
             print()
             continue
 
