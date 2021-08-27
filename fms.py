@@ -176,14 +176,16 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         # REFER: https://superuser.com/questions/661315/tools-to-extract-text-from-powerpoint-pptx-in-linux
         PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
         def read_file_pptx(input_file_path: str):
+            global logger
             cmd_slides_list = r"unzip -l '" + input_file_path.replace(r"'", r"'\''") + r"' 'ppt/slides/slide*.xml' | awk '{print $4}' | grep 'ppt/slides/slide.*' --color=never | sort -V"
             cmd_read_slide = r"unzip -p '" + input_file_path.replace(r"'", r"'\''") + r"' '{}'"
             status_code, output = subprocess.getstatusoutput(cmd_slides_list)
             if status_code != 0:
                 return status_code, ''
             out_slides_list = output.split()
+            logger.debug(f'{out_slides_list=}')
             output = ''
-            for slide_path in out_slides_list[:3]:
+            for slide_path in out_slides_list:
                 status_code, out_slide = subprocess.getstatusoutput(cmd_read_slide.format(slide_path, slide_path) + r" | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)' ; echo '" + PPT_GROUP_SEPARATOR + r"\n'")
                 logger.debug(f'{out_slide=}')
                 if status_code != 0:
@@ -196,8 +198,10 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         # Problem with below command is that it does not read the slides in correct order
         # file_read_command = r"unzip -p {} 'ppt/slides/slide*.xml' | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)'"
     # elif pathlib.Path(input_file_path).suffix == '.odt':
+    #     # REFER: https://askubuntu.com/questions/828578/cat-command-doesnt-show-the-lines-of-the-text/828586#828586
     #     # REFER: https://stackoverflow.com/questions/54293459/find-a-string-in-a-list-of-odt-files-and-print-the-matching-lines
-    #     pass
+    #     file_read_command = r"unzip -p {} 'content.xml' | grep TODO_add_expression"
+    # .ppt file, REFER: https://askubuntu.com/questions/902877/will-grep-or-sed-search-within-a-ppt-file-to-find-a-phrase
 
     context_lines: int = parameters['C']
     ignore_case: bool = parameters['ignore_case']
@@ -327,7 +331,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.4'
+    my_parser.version = '2.5'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments
