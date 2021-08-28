@@ -166,12 +166,30 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         file_read_command = parameters['cmd']
     elif pathlib.Path(input_file_path).suffix == '.pdf':
         file_read_command = r'pdftotext {} -'
-    elif pathlib.Path(input_file_path).suffix == '.docx':
+    elif pathlib.Path(input_file_path).suffix in ('.doc', '.rtf'):
+        # TODO: find a better way to extract text from '.rtf'
+        # REFER: https://askubuntu.com/a/1140942
+        file_read_command = r"catdoc {}"
+    elif pathlib.Path(input_file_path).suffix in ('.docx', '.dotx', '.docm'):
         # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
         # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
-        file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g'"
+        file_read_command = r"unzip -p {} 'word/document.xml' | sed 's#<w:pPr>#\n#g' | grep '<w:t' | sed 's/<[^<]*>//g'"
+        #                              main text^    new line formatting^
+        # TODO: compare the below with above
+        # REFER: https://stackoverflow.com/questions/5671988/how-to-extract-just-plain-text-from-doc-docx-files
+        # file_read_command = r"unzip -p {} 'word/document.xml' | sed -e 's#<w:pPr>#\n#g' | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
         # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
         # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
+    elif pathlib.Path(input_file_path).suffix == '.fodt':
+        # REFER: https://stackoverflow.com/questions/5376024/how-to-remove-xml-tags-from-unix-command-line
+        file_read_command = r"cat {} | grep '<text:p ' | sed -e 's/<[^>]*>//g'"
+    elif pathlib.Path(input_file_path).suffix in ('.odt', '.ott'):
+        # REFER: https://linuxgazette.net/164/misc/lg/linux_command_to_read_odt.html
+        # REFER: https://askubuntu.com/questions/828578/cat-command-doesnt-show-the-lines-of-the-text/828586#828586
+        # REFER: https://stackoverflow.com/questions/54293459/find-a-string-in-a-list-of-odt-files-and-print-the-matching-lines
+        file_read_command = r"unzip -p {} 'content.xml' | sed -e 's#<text:p text:style-name#\n<text:p text:style-name#g' | sed -e 's/<[^>]*>//g'"
+    elif pathlib.Path(input_file_path).suffix == '.epub':
+        file_read_command = r"unzip -p {} 'OEBPS/sections/section*.xhtml' | sed -e 's# ##g;s#<p #\n<p #g' | sed -e 's/<[^>]*>//g'"
     elif pathlib.Path(input_file_path).suffix == '.pptx':
         # REFER: https://superuser.com/questions/661315/tools-to-extract-text-from-powerpoint-pptx-in-linux
         PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
@@ -197,12 +215,7 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         input_group_separator_raw = PPT_GROUP_SEPARATOR
         # Problem with below command is that it does not read the slides in correct order
         # file_read_command = r"unzip -p {} 'ppt/slides/slide*.xml' | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)'"
-    # elif pathlib.Path(input_file_path).suffix == '.odt':
-    #     # REFER: https://askubuntu.com/questions/828578/cat-command-doesnt-show-the-lines-of-the-text/828586#828586
-    #     # REFER: https://stackoverflow.com/questions/54293459/find-a-string-in-a-list-of-odt-files-and-print-the-matching-lines
-    #     file_read_command = r"unzip -p {} 'content.xml' | grep TODO_add_expression"
     # .ppt file, REFER: https://askubuntu.com/questions/902877/will-grep-or-sed-search-within-a-ppt-file-to-find-a-phrase
-
     context_lines: int = parameters['C']
     ignore_case: bool = parameters['ignore_case']
 
@@ -331,7 +344,7 @@ if __name__ == '__main__':
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
-    my_parser.version = '2.5'
+    my_parser.version = '3.0'
 
     # DIFFERENCE between Positional and Optional arguments: optional arguments start with - or --, while positional arguments don’t.
     # Add the arguments

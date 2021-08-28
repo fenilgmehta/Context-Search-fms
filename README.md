@@ -1,5 +1,6 @@
 # Context-Search-fms
-grep like utility to search text, docx, pptx and PDF files for context and highlight using different colors
+grep like utility to search text, PDF, docx, doc, odt, epub, rtf, dotx, docm,
+fodt, ott and pptx files for context and highlight using different colors
 
 
 ### Why use `fms` ?
@@ -23,6 +24,8 @@ SHELL_INITIALIZATION="${HOME}/.bashrc"  # Use ".zshrc" for zsh
 mkdir "${INSTALL_DIR}"
 cd "${INSTALL_DIR}"
 
+# Install required tools               v required for `pdftotext`
+sudo apt install unzip gawk grep sed poppler-utils catdoc
 # https://github.com/alttch/neotermcolor/
 pip install neotermcolor
 # https://github.com/mbornet-hl/hl
@@ -36,8 +39,8 @@ chmod +x fms.py
 # Add ${PATH} to shell initialization files
 PATH="${PATH}:$(pwd)"
 echo "PATH=\"\${PATH}:$(pwd)\"" >> ${SHELL_INITIALIZATION}
-alias fms=${INSTALL_DIR}/fms.py
-echo "alias fms=${INSTALL_DIR}/fms.py" >> ${SHELL_INITIALIZATION}
+alias fms="python3 ${INSTALL_DIR}/fms.py"
+echo "alias fms=\"python3 ${INSTALL_DIR}/fms.py\"" >> ${SHELL_INITIALIZATION}
 
 # Enjoy :)
 fms --help
