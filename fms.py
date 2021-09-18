@@ -12,6 +12,7 @@ import pathlib
 import math
 import logging
 import traceback
+import urllib.request
 
 
 # Multiple Colour Highlighting
@@ -39,11 +40,31 @@ def debug_list(list_var: List, lname: str) -> None:
         print(i, end="\n" + GROUP_SEPARATOR + "\n")
 
 
-def my_colored(text, color=None, on_color=None, attrs=None):
+def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
     global COLOR_OUTPUT_TEXT
     if COLOR_OUTPUT_TEXT:
         return neotermcolor.colored(text, color, on_color, attrs)
     return text
+
+
+def url_to_path(file_path_url:str) -> str:
+    if os.path.exists(file_path_url):
+        return file_path_url
+    # NOTE: Handle quotes in input (this is optional)
+    # if os.path.exists(file_path_url[1:-1]):
+    #     return file_path_url[1:-1]
+
+    # This primarily converts things like '%20' ---> ' '
+    file_url = urllib.request.url2pathname(file_path_url)
+
+    #  0      v index 7  
+    # "file:///home/student/..."
+    file_path = file_url[7:]
+    if os.path.exists(file_url):
+        file_path = file_url
+    if os.path.exists(file_url[1:-1]):  # To handle quotes
+        file_path = file_url[1:-1]
+    return file_path
 
 
 def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
@@ -161,16 +182,17 @@ def smart_search(file_read_command: str,
 
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     input_group_separator_raw = None
-    file_read_command: str = r'cat {}'
+    file_extension: str = str(pathlib.Path(input_file_path).suffix).lower()
+    file_read_command: str = r'cat --show-nonprinting {}'  # use ^ and M- notation, except for LFD and TAB
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
-    elif pathlib.Path(input_file_path).suffix == '.pdf':
+    elif file_extension == '.pdf':
         file_read_command = r'pdftotext {} -'
-    elif pathlib.Path(input_file_path).suffix in ('.doc', '.rtf'):
+    elif file_extension in ('.doc', '.rtf'):
         # TODO: find a better way to extract text from '.rtf'
         # REFER: https://askubuntu.com/a/1140942
         file_read_command = r"catdoc {}"
-    elif pathlib.Path(input_file_path).suffix in ('.docx', '.dotx', '.docm'):
+    elif file_extension in ('.docx', '.dotx', '.docm'):
         # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
         # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
         file_read_command = r"unzip -p {} 'word/document.xml' | sed 's#<w:pPr>#\n#g' | grep '<w:t' | sed 's/<[^<]*>//g'"
@@ -180,17 +202,21 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         # file_read_command = r"unzip -p {} 'word/document.xml' | sed -e 's#<w:pPr>#\n#g' | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
         # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
         # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
-    elif pathlib.Path(input_file_path).suffix == '.fodt':
+    elif file_extension == '.fodt':
         # REFER: https://stackoverflow.com/questions/5376024/how-to-remove-xml-tags-from-unix-command-line
         file_read_command = r"cat {} | grep '<text:p ' | sed -e 's/<[^>]*>//g'"
-    elif pathlib.Path(input_file_path).suffix in ('.odt', '.ott'):
+    elif file_extension in ('.odt', '.ott'):
         # REFER: https://linuxgazette.net/164/misc/lg/linux_command_to_read_odt.html
         # REFER: https://askubuntu.com/questions/828578/cat-command-doesnt-show-the-lines-of-the-text/828586#828586
         # REFER: https://stackoverflow.com/questions/54293459/find-a-string-in-a-list-of-odt-files-and-print-the-matching-lines
         file_read_command = r"unzip -p {} 'content.xml' | sed -e 's#<text:p text:style-name#\n<text:p text:style-name#g' | sed -e 's/<[^>]*>//g'"
-    elif pathlib.Path(input_file_path).suffix == '.epub':
+    elif file_extension == '.epub':
         file_read_command = r"unzip -p {} 'OEBPS/sections/section*.xhtml' | sed -e 's# ##g;s#<p #\n<p #g' | sed -e 's/<[^>]*>//g'"
-    elif pathlib.Path(input_file_path).suffix == '.pptx':
+    elif file_extension == '.xlsx':
+        file_read_command = r"unzip -p {} 'xl/sharedStrings.xml' | sed -e 's/<si><t/\n<si><t/g' -e 's/<[^>]*>/ /g' -e 's/  / /g' -e 's/  / /g'"
+    elif file_extension == '.ods':
+        file_read_command = r"unzip -p {} 'content.xml' | sed -e 's/<table:table-row/\n<table:table-row/g' -e 's/<[^>]*>/ /g' -e 's/  / /g' -e 's/  / /g'"
+    elif file_extension == '.pptx':
         # REFER: https://superuser.com/questions/661315/tools-to-extract-text-from-powerpoint-pptx-in-linux
         PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
         def read_file_pptx(input_file_path: str):
@@ -363,7 +389,9 @@ if __name__ == '__main__':
                            help='The list of paths to be used for recursive search [default: .]')
     # TODO: https://stackoverflow.com/questions/2472221/how-to-check-if-a-file-contains-plain-text/2472243
     # Add -m options for mime type
-    DEFAULT_EXTEXCLUDE_LIST: str = 'jpeg jpg png zip tar gz exe mp4 mkv ctb ctb~ ctb~~ ctb~~~'
+    # TODO: add comment that -x and -X are matched case insensitive with file extension
+    # .a is "current ar archive"
+    DEFAULT_EXTEXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a jar class db mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
     my_parser.add_argument('-X',
                            '--extexclude',
                            action='append',
@@ -389,10 +417,8 @@ if __name__ == '__main__':
     my_parser.add_argument('-C',
                            metavar='--context',
                            type=int,
-                           default=10,
-                           help='Number of lines in the context [default: 10]')
-    # NOTE: this last option '-g' / '--group' is required because user may not want the
-    #       shell to do any text processing on their query
+                           default=7,
+                           help='Number of lines in the context [default: 7]')
     my_parser.add_argument('-g',
                            metavar='--group',
                            action='append',
@@ -421,6 +447,10 @@ if __name__ == '__main__':
                            type=str,
                            default='auto',
                            help="Can either be auto, always or never [default: auto]")
+    my_parser.add_argument('-u',
+                           '--url-name',
+                           action='store_true',
+                           help='Print clickable file names')
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
@@ -525,6 +555,10 @@ if __name__ == '__main__':
                     if rec_path_abs in set_abs_paths:
                         print("{}: Skipping duplicate path for -r parameter: '{}'".format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path), file=sys.stderr)
                         continue
+                    if os.path.isfile(rec_path_abs):
+                        if rec_path_abs not in paths_list:
+                            paths_list.append(rec_path_abs)
+                        continue
                     set_abs_paths.add(rec_path_abs)
                     # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
                     for r,d,f in os.walk(rec_path):
@@ -546,7 +580,7 @@ if __name__ == '__main__':
             else:
                 for ext_list in args.extexclude:
                     for ext_multi in ext_list:
-                        for ext_i in ext_multi.split():
+                        for ext_i in ext_multi.lower().split():
                             extexclude_list.append(ext_i.lstrip('.'))
                 if "defaults" in extexclude_list:
                     extexclude_list.remove("defaults")
@@ -558,7 +592,7 @@ if __name__ == '__main__':
             extensions_list = list()
             for ext_list in args.extensions:
                 for ext_multi in ext_list:
-                    for ext_i in ext_multi.split():
+                    for ext_i in ext_multi.lower().split():
                         extensions_list.append(ext_i.lstrip('.'))
             if extexclude_list is not None:
                 for ext in extensions_list:
@@ -578,6 +612,8 @@ if __name__ == '__main__':
             flag_check_extensions_list = True
             continue
         if not os.path.exists(input_file_path):
+            input_file_path = url_to_path(input_file_path)
+        if not os.path.exists(input_file_path):
             # "input_file_path" does NOT exist
             print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
             continue
@@ -593,7 +629,7 @@ if __name__ == '__main__':
         # REFER: https://www.geeksforgeeks.org/how-to-get-file-extension-in-python/
         if flag_check_extensions_list and (extexclude_list is not None):
             # -X parameter is used
-            if os.path.splitext(input_file_path)[-1][1:] in extexclude_list:
+            if os.path.splitext(input_file_path)[-1][1:].lower() in extexclude_list:
                 continue
         if flag_check_extensions_list and (extensions_list is not None):
             # -x parameter is used
@@ -632,16 +668,24 @@ if __name__ == '__main__':
                 EXIT_CODE = 0
                 continue
             if len(paths_list_to_process) > 1:
-                print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
+                if args.url_name:
+                    # REFER: https://stackoverflow.com/questions/11687478/convert-a-filename-to-a-file-url
+                    print('==> {} <=='.format(my_colored(pathlib.Path(input_file_path).absolute().as_uri(), 'white', attrs=['bold', 'underline'])))
+                else:
+                    print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
 
             if len(file_segments_matched) > 0:
                 EXIT_CODE = 0
-                highlight_words(file_segments_matched=file_segments_matched,
-                                words_list=search_parameters[4],
-                                ignore_case=search_parameters[3],
-                                output_segment_separator=eval("'" + args.output_segment_separator + "'"),
-                                verbose=args.verbose)
-
+                try:
+                    highlight_words(file_segments_matched=file_segments_matched,
+                                    words_list=search_parameters[4],
+                                    ignore_case=search_parameters[3],
+                                    output_segment_separator=eval("'" + args.output_segment_separator + "'"),
+                                    verbose=args.verbose)
+                except BrokenPipeError as e:
+                    logger.debug(f'Output was piped to something which was closed before `fms` finished writing everything to the stream')
+                    logger.debug(f'{e}')
+                    logger.debug(traceback.format_exc())
             if len(paths_list_to_process) > 1:
                 print()
 
