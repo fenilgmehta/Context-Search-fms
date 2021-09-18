@@ -1,6 +1,6 @@
 # Context-Search-fms
-grep like utility to search text, PDF, docx, doc, odt, epub, rtf, dotx, docm,
-fodt, ott and pptx files for context and highlight using different colors
+grep like utility to search text, PDF, doc, docx, pptx, xlsx, odt, ods, epub, rtf,
+docm, dotx, fodt and ott files, and highlight the results using different colors
 
 
 ### Why use `fms` ?
@@ -36,6 +36,9 @@ chmod +x hl
 wget https://github.com/fenilgmehta/Context-Search-fms/raw/main/fms.py
 chmod +x fms.py
 
+# Use "pyinstaller" to build an executable (optional)
+# https://stackoverflow.com/questions/9002275/how-to-build-a-single-python-file-from-multiple-scripts
+
 # Add ${PATH} to shell initialization files
 PATH="${PATH}:$(pwd)"
 echo "PATH=\"\${PATH}:$(pwd)\"" >> ${SHELL_INITIALIZATION}
@@ -55,8 +58,8 @@ fms --help
 - Other examples of simple highlighting
   ```sh
   ps -e | fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
-  ip a | fms -C100000 -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>' -W '(^[0-9]+: )(\d|\w+)'
-  ifconfig | fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '^(eth|(vir)?br|vnet)[0-9.:]*\>' -W '[0-9a-f]{4}::[0-9a-f]{4}\:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{4}' -W '(errors|dropped|overruns):[^0][0-9]*'
+  ip a | fms -C100000 -W '(^[0-9]+: )(\d|\w+)' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))\>' -W '(errors|dropped|overruns) [^0][0-9]*' -W '[0-9a-f]{4}::[0-9a-f]{1,4}:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{1,4}'
+  ifconfig | fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '(errors|dropped|overruns) [^0][0-9]*' -W '[0-9a-f]{4}::[0-9a-f]{1,4}:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{1,4}'
   echo "abcdefghijklmnopqrstuvwxyz" | fms -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
   ```
 
@@ -70,6 +73,8 @@ fms.py --version
 # Print help
 fms.py --help
 
+# NOTE: if piping the output of `fms --color=always ...` to `less`,
+#       then use `less -R` to see correct highlighting
 ```
 
 ```
@@ -78,7 +83,7 @@ usage: fms.py [-h] [--version]
               [-X [EXTEXCLUDE [EXTEXCLUDE ...]]] [-x EXTENSIONS [EXTENSIONS ...]]
               [-i] [-l] [-C --context]
               [-g --group] [-g2 --group2] [-w --word [--word ...]] [-W --Word [--Word ...]]
-              [--color COLOR] [-n] [-v] [-Q]
+              [--color COLOR] [-u] [-n] [-v] [-Q]
               [-I INPUT_RECORD_SEPARATOR] [-O OUTPUT_SEGMENT_SEPARATOR]
               [--cmd CMD]
               [-D]
@@ -117,6 +122,7 @@ optional arguments:
   -W --Word [--Word ...]
                         Optional words to search
   --color COLOR         Can either be auto, always or never [default: auto]
+  -u, --url-name        Print clickable file names
   -n, --line-number     Print line number (Note: printing line numbers may cause problem -I
                         parameter and REGEX which use "^")
   -v, --verbose         Print expression highlighted and number of segments which satisfied
