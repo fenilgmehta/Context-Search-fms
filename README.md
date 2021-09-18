@@ -1,7 +1,9 @@
 # Context-Search-fms
-grep like utility to search text, PDF, doc, docx, pptx, xlsx, odt, ods, epub, rtf,
-docm, dotx, fodt and ott files, and highlight the results using different colors
+grep like utility to search text, PDF, doc, docx, pptx, xlsx, odt, ods, epub, docm, dotx,
+fodt, ott and rtf files, and highlight the results using different colors
 
+- [Changelog](./CHANGELOG.md)
+- [License](./LICENSE)
 
 ### Why use `fms` ?
 
@@ -146,4 +148,3 @@ optional arguments:
 
 Enjoy the program :)
 ```
-
