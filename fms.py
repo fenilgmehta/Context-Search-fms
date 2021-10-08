@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 #!/usr/bin/python3
+
+# Copyright (C) 2021 Fenil Mehta <fenilgmehta@gmail.com>
+# All Rights Reserved.
+
 import gc
 import os
 import sys
@@ -79,7 +83,9 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
     else:
         status_code, output = file_read_command(input_file_path)
     output = output.rstrip()
-
+    # REFER: https://unix.stackexchange.com/questions/219438/remove-the-l-aka-f-ff-form-feed-page-break-character
+    # output.replace('', '')  # This is to remove the formfeed character
+    # output.replace('^L', '')  # This is to remove the formfeed character
     if status_code != 0:
         # ERROR occurred
         print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path), file=sys.stderr)
@@ -199,6 +205,7 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         #                              main text^    new line formatting^
         # TODO: compare the below with above
         # REFER: https://stackoverflow.com/questions/5671988/how-to-extract-just-plain-text-from-doc-docx-files
+        # REFER: https://stackoverflow.com/questions/15557573/how-to-use-catdoc-to-display-dock-file-encoded-in-utf-8
         # file_read_command = r"unzip -p {} 'word/document.xml' | sed -e 's#<w:pPr>#\n#g' | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
         # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
         # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
