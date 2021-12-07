@@ -18,7 +18,6 @@ import logging
 import traceback
 import urllib.request
 
-
 # Multiple Colour Highlighting
 #     --> https://stackoverflow.com/questions/17236005/grep-output-with-multiple-colors
 #           --> 1. https://github.com/mbornet-hl/hl
@@ -51,7 +50,7 @@ def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
     return text
 
 
-def url_to_path(file_path_url:str) -> str:
+def url_to_path(file_path_url: str) -> str:
     if os.path.exists(file_path_url):
         return file_path_url
     # NOTE: Handle quotes in input (this is optional)
@@ -71,7 +70,7 @@ def url_to_path(file_path_url:str) -> str:
     return file_path
 
 
-def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
+def read_file(file_read_command: Union[str, Callable[[str], Tuple[int, str]]],
               input_file_path: str,
               input_group_separator_raw: str,
               add_line_number: bool) -> List:
@@ -79,7 +78,9 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
         # Handle single quotes in file name
         # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
         # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
-        status_code, output = subprocess.getstatusoutput(file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'"))
+        status_code, output = subprocess.getstatusoutput(
+            file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'")
+        )
     else:
         status_code, output = file_read_command(input_file_path)
     output = output.rstrip()
@@ -88,8 +89,10 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
     # output.replace('^L', '')  # This is to remove the formfeed character
     if status_code != 0:
         # ERROR occurred
-        print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path), file=sys.stderr)
-        print("{}: status_code = {}".format(my_colored('Error', 'red', attrs=['bold']), str(status_code)), file=sys.stderr)
+        print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path),
+              file=sys.stderr)
+        print("{}: status_code = {}".format(my_colored('Error', 'red', attrs=['bold']), str(status_code)),
+              file=sys.stderr)
         print("{}: Output:".format(my_colored('Error', 'red', attrs=['bold'])), file=sys.stderr)
         print(output, file=sys.stderr)
         print("\nExiting...", file=sys.stderr)
@@ -106,10 +109,12 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
         max_digit_count = int(math.log10(line_count)) + 1
         global GROUP_SEPARATOR
         # "-F" parameter is used to avoid un-necessary work by awk to split each line based on spaces
-        output_numbered = subprocess.run(['awk', '-F', GROUP_SEPARATOR, r'{printf("%0' + str(max_digit_count) + r'd: %s\n", NR, $0)}', '-'],
-                                        stdout=subprocess.PIPE,
-                                        text=True,
-                                        input=output).stdout
+        output_numbered = subprocess.run(
+            ['awk', '-F', GROUP_SEPARATOR, r'{printf("%0' + str(max_digit_count) + r'd: %s\n", NR, $0)}', '-'],
+            stdout=subprocess.PIPE,
+            text=True,
+            input=output
+        ).stdout
         output_numbered = str(output_numbered)
         # print(output_numbered)
         if input_group_separator_raw is not None:
@@ -122,7 +127,12 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int,str]]],
                 # TODO: Check if -2 is required or -1 is required
                 # NOTE: Previously it was -2
                 # NOTE: Last new line need not be replaced
-                input_group_separator = eval("'" + input_group_separator_raw[:-1].replace(r'\n', r'\n\\d+: ') + input_group_separator_raw[-1:] + "'")
+                input_group_separator = eval(
+                    "'"
+                    + input_group_separator_raw[:-1].replace(r'\n', r'\n\\d+: ')
+                    + input_group_separator_raw[-1:]
+                    + "'"
+                )
                 # input_group_separator = eval("'" + input_group_separator_raw.replace(r'\n', r'\n\\d+: ') + "'")
             else:
                 # TODO: check this
@@ -226,9 +236,12 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     elif file_extension == '.pptx':
         # REFER: https://superuser.com/questions/661315/tools-to-extract-text-from-powerpoint-pptx-in-linux
         PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
+
         def read_file_pptx(input_file_path: str):
             global logger
-            cmd_slides_list = r"unzip -l '" + input_file_path.replace(r"'", r"'\''") + r"' 'ppt/slides/slide*.xml' | awk '{print $4}' | grep 'ppt/slides/slide.*' --color=never | sort -V"
+            cmd_slides_list = r"unzip -l '" \
+                              + input_file_path.replace(r"'", r"'\''") \
+                              + r"' 'ppt/slides/slide*.xml' | awk '{print $4}' | grep 'ppt/slides/slide.*' --color=never | sort -V"
             cmd_read_slide = r"unzip -p '" + input_file_path.replace(r"'", r"'\''") + r"' '{}'"
             status_code, output = subprocess.getstatusoutput(cmd_slides_list)
             if status_code != 0:
@@ -237,13 +250,18 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
             logger.debug(f'{out_slides_list=}')
             output = ''
             for slide_path in out_slides_list:
-                status_code, out_slide = subprocess.getstatusoutput(cmd_read_slide.format(slide_path, slide_path) + r" | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)' ; echo '" + PPT_GROUP_SEPARATOR + r"\n'")
+                status_code, out_slide = subprocess.getstatusoutput(
+                    cmd_read_slide.format(slide_path, slide_path)
+                    + r" | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)' ; echo '"
+                    + PPT_GROUP_SEPARATOR + r"\n'"
+                )
                 logger.debug(f'{out_slide=}')
                 if status_code != 0:
                     output += 'Unable to read slide: {}\n{}\n'.format(slide_path, PPT_GROUP_SEPARATOR)
                 else:
                     output += my_colored('Slide ' + slide_path[16:-4], 'white', attrs='bold') + '\n' + out_slide
             return 0, output
+
         file_read_command = read_file_pptx
         input_group_separator_raw = PPT_GROUP_SEPARATOR
         # Problem with below command is that it does not read the slides in correct order
@@ -277,7 +295,8 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
             continue
         words_list_set.add(i)
         if add_line_number and i[0] == '^':
-            uniq_words_list.append("^([0-9]+: )?(" + i[1:] + ")")  # replace "^" with "^([0-9]+: )?" to handle leading line number
+            # replace "^" with "^([0-9]+: )?" to handle leading line number
+            uniq_words_list.append("^([0-9]+: )?(" + i[1:] + ")")
         else:
             uniq_words_list.append(i)
 
@@ -287,7 +306,11 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
            uniq_words_list, input_group_separator_raw, add_line_number
 
 
-def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, output_segment_separator: str, verbose: bool):
+def highlight_words(file_segments_matched,
+                    words_list: List,
+                    ignore_case: bool,
+                    output_segment_separator: str,
+                    verbose: bool):
     # if ignore_case:
     #     for i in range(len(words_list)):
     #         words_list[i] = words_list[i].lower()
@@ -344,7 +367,7 @@ def highlight_words(file_segments_matched, words_list: List, ignore_case: bool, 
                     ' , '.join([bash_run(f"hl -i {t_color} .*".split(), t_word) for t_word, t_color in words_list[2:]])
                 )
             else:
-                print(' , '.join( [str(i) for i,j in words_list[2:]] ))
+                print(' , '.join([str(i) for i, j in words_list[2:]]))
         else:
             print("NO words searched")
         # Print Segment Info
@@ -398,21 +421,25 @@ if __name__ == '__main__':
     # Add -m options for mime type
     # TODO: add comment that -x and -X are matched case insensitive with file extension
     # .a is "current ar archive"
-    DEFAULT_EXTEXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a jar class db mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
+    DEFAULT_EXTEXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a jar class db ' \
+                                   'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
     my_parser.add_argument('-X',
                            '--extexclude',
                            action='append',
                            nargs='*',
                            type=str,
-                           help='Files with these extensions to be excluded from being searched for -r flag (Example Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be used) '
-                                '(Note: -X gets priority over -x) '
-                                '(Default exlude list will be used if not parameters are passed, or "defaults" is passed as a parameter: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
+                           help='Files with these extensions to be excluded from being searched for -r flag (Example '
+                                'Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be '
+                                'used) (Note: -X gets priority over -x) (Default exlude list will be used if not ' \
+                                'parameters are passed, or "defaults" is passed as '
+                                'a parameter: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x md -x pdf OR -x "md pdf") (Note: for "file.tar.gz" only "-x gz" should be used)')
+                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x md '
+                                '-x pdf OR -x "md pdf") (Note: for "file.tar.gz" only "-x gz" should be used)')
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
@@ -431,13 +458,15 @@ if __name__ == '__main__':
                            action='append',
                            # nargs='?',
                            type=str,
-                           help='Any ONE white space separated group of words to search (this gets priority over -w parameter)')
+                           help='Any ONE white space separated group of words to search '
+                                '(this gets priority over -w parameter)')
     my_parser.add_argument('-g2',
                            metavar='--group2',
                            action='append',
                            # nargs='?',
                            type=str,
-                           help='Any TWO white space separated group of words to search (this gets priority over -w parameter)')
+                           help='Any TWO white space separated group of words to search '
+                                '(this gets priority over -w parameter)')
     my_parser.add_argument('-w',
                            metavar='--word',
                            action='append',
@@ -461,11 +490,14 @@ if __name__ == '__main__':
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
-                           help='Print line number (Note: printing line numbers may cause problem -I parameter and REGEX which use "^")')
+                           help='Print line number (Note: printing line numbers may cause problem -I '
+                                'parameter and REGEX which use "^")')
     my_parser.add_argument('-v',
                            '--verbose',
                            action='store_true',
-                           help='Print expression highlighted and number of segments which satisfied the search conditions (Bug: content printed because of this flag will be colored for --color=auto even if the output is not directed to a TTY)')
+                           help='Print expression highlighted and number of segments which satisfied the '
+                                'search conditions (Bug: content printed because of this flag will be '
+                                'colored for --color=auto even if the output is not directed to a TTY)')
     my_parser.add_argument('-Q',
                            action='store_true',
                            help='Do not print anything for files in which no results found')
@@ -502,17 +534,20 @@ if __name__ == '__main__':
     else:
         logger.setLevel(logging.INFO)
     logger_file_handler = logging.FileHandler('/dev/stderr')
-    logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
+    logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
     # logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
     logger_file_handler.setFormatter(logger_formatter)
     logger.addHandler(logger_file_handler)
 
     logger.debug("Debugging is ON")
     logger.debug(args)
-    logger.handlers[0].flush()  # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
+    # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
+    logger.handlers[0].flush()
 
     if str(args.color).lower() not in ('auto', 'always', 'never'):
-        logger.warning('{}: Invalid parameter --color={}'.format(my_colored('Warning', 'yellow', attrs=['bold']), args.color))
+        logger.warning(
+            '{}: Invalid parameter --color={}'.format(my_colored('Warning', 'yellow', attrs=['bold']), args.color)
+        )
         logger.warning('         Using --color=auto'.format(args.color))
         args.color = 'auto'
 
@@ -543,7 +578,7 @@ if __name__ == '__main__':
 
     paths_list: List = list()
     if (args.path is None) and (args.recursive is None):
-        paths_list=['/dev/stdin']
+        paths_list = ['/dev/stdin']
     else:
         # Parse -p, -r parameters
         if args.path is not None:
@@ -560,7 +595,9 @@ if __name__ == '__main__':
                 for rec_path in rec_paths_list:
                     rec_path_abs = os.path.abspath(rec_path)
                     if rec_path_abs in set_abs_paths:
-                        print("{}: Skipping duplicate path for -r parameter: '{}'".format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path), file=sys.stderr)
+                        print("{}: Skipping duplicate path for -r parameter: '{}'".
+                              format(my_colored('Warning', 'yellow', attrs=['bold']), rec_path),
+                              file=sys.stderr)
                         continue
                     if os.path.isfile(rec_path_abs):
                         if rec_path_abs not in paths_list:
@@ -568,7 +605,7 @@ if __name__ == '__main__':
                         continue
                     set_abs_paths.add(rec_path_abs)
                     # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
-                    for r,d,f in os.walk(rec_path):
+                    for r, d, f in os.walk(rec_path):
                         for file in sorted(f):
                             paths_list.append(os.path.join(r, file))
         pass
@@ -578,7 +615,8 @@ if __name__ == '__main__':
     extexclude_list: List = None
     if args.extexclude is not None:
         if (args.recursive is None):
-            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-X flag will be ignored because -r flag is not used'))
+            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']),
+                                  '-X flag will be ignored because -r flag is not used'))
         else:
             extexclude_list = list()
             if len(args.extexclude) == 1 and len(args.extexclude[0]) == 0:
@@ -594,7 +632,8 @@ if __name__ == '__main__':
                     extexclude_list.extend(DEFAULT_EXTEXCLUDE_LIST.split())
     if args.extensions is not None:
         if args.recursive is None:
-            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']), '-x flag will be ignored because -r flag is not used'))
+            print('{}: {}'.format(my_colored('Warning', 'yellow', attrs=['bold']),
+                                  '-x flag will be ignored because -r flag is not used'))
         else:
             extensions_list = list()
             for ext_list in args.extensions:
@@ -604,7 +643,12 @@ if __name__ == '__main__':
             if extexclude_list is not None:
                 for ext in extensions_list:
                     if ext in extexclude_list:
-                        print('{}: extention "{}" {} "-x {}"'.format(my_colored('Warning', 'yellow', attrs=['bold']), ext, 'is used with both -x and -X flag. So, ignoring', ext))
+                        print(
+                            '{}: extention "{}" {} "-x {}"'.format(
+                                my_colored('Warning', 'yellow', attrs=['bold']),
+                                ext, 'is used with both -x and -X flag. So, ignoring', ext
+                            )
+                        )
 
     # Decide which file to use for searching and which
     # not to based on command line parameters
@@ -622,13 +666,30 @@ if __name__ == '__main__':
             input_file_path = url_to_path(input_file_path)
         if not os.path.exists(input_file_path):
             # "input_file_path" does NOT exist
-            print('{}: Cannot open \'{}\' for reading: No such file or directory'.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
+            print(
+                '{}: Cannot open \'{}\' for reading: No such file or directory'.format(
+                    my_colored('Warning', 'yellow', attrs=['bold']),
+                    my_colored(input_file_path, 'white', attrs=['bold', 'underline'])
+                ),
+                file=sys.stderr
+            )
             continue
         if os.path.isdir(input_file_path):
             # "input_file_path" is a directory, NOT a file
-            print('{}: Not scanning directory \'{}\''.format(my_colored('Warning', 'yellow', attrs=['bold']), my_colored(input_file_path, 'white', attrs=['bold', 'underline'])), file=sys.stderr)
+            print(
+                '{}: Not scanning directory \'{}\''.format(
+                    my_colored('Warning', 'yellow', attrs=['bold']),
+                    my_colored(input_file_path, 'white', attrs=['bold', 'underline'])
+                ),
+                file=sys.stderr
+            )
             if flag_show_directory_warning:
-                print('{}: Use -r for recursively searching inside a directory'.format(my_colored('Warning', 'yellow', attrs=['bold'])), file=sys.stderr)
+                print(
+                    '{}: Use -r for recursively searching inside a directory'.format(
+                        my_colored('Warning', 'yellow', attrs=['bold'])
+                    ),
+                    file=sys.stderr
+                )
                 flag_show_directory_warning = False
             continue
 
@@ -658,7 +719,9 @@ if __name__ == '__main__':
             # search_parameters ---> (file_read_command, input_file_path, context_lines, ignore_case, uniq_words_list, input_group_separator_raw, add_line_number)
             search_parameters: Tuple = parse_parameters(parameters=vars(args), input_file_path=input_file_path)
 
-            for var_value,var_name in zip(search_parameters, ["file_read_command", "input_file_path", "context_lines", "ignore_case", "uniq_words_list", "input_group_separator_raw", "add_line_number"]):
+            for var_value, var_name in zip(search_parameters,
+                                           ["file_read_command", "input_file_path", "context_lines", "ignore_case",
+                                            "uniq_words_list", "input_group_separator_raw", "add_line_number"]):
                 logger.debug("{:<20s} = {}".format(var_name, var_value))
 
             file_segments_matched: List = smart_search(*search_parameters)
@@ -677,7 +740,15 @@ if __name__ == '__main__':
             if len(paths_list_to_process) > 1:
                 if args.url_name:
                     # REFER: https://stackoverflow.com/questions/11687478/convert-a-filename-to-a-file-url
-                    print('==> {} <=='.format(my_colored(pathlib.Path(input_file_path).absolute().as_uri(), 'white', attrs=['bold', 'underline'])))
+                    print(
+                        '==> {} <=='.format(
+                            my_colored(
+                                pathlib.Path(input_file_path).absolute().as_uri(),
+                                'white',
+                                attrs=['bold', 'underline']
+                            )
+                        )
+                    )
                 else:
                     print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
 
@@ -690,7 +761,10 @@ if __name__ == '__main__':
                                     output_segment_separator=eval("'" + args.output_segment_separator + "'"),
                                     verbose=args.verbose)
                 except BrokenPipeError as e:
-                    logger.debug(f'Output was piped to something which was closed before `fms` finished writing everything to the stream')
+                    logger.debug(
+                        f'Output was piped to something which was closed before '
+                        f'`fms` finished writing everything to the stream'
+                    )
                     logger.debug(f'{e}')
                     logger.debug(traceback.format_exc())
             if len(paths_list_to_process) > 1:
@@ -711,4 +785,3 @@ if __name__ == '__main__':
     # This   # echo "abcdefghijklmnopqrstuvwxyz" | fms -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
     # Link 1 # echo "abcdefghijklmnopqrstuvwxyz" | rpen.py -k a b c d e f g h i j k l n o p q r s t u v w x y z
     # Link 2 # echo "abcdefghijklmnopqrstuvwxyz" | h a b c d e f g h i j k l n
-
