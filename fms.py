@@ -4,19 +4,23 @@
 # Copyright (C) 2021 Fenil Mehta <fenilgmehta@gmail.com>
 # All Rights Reserved.
 
+import argparse
 import gc
-import os
-import sys
-from itertools import cycle
-import subprocess
-from typing import Dict, List, Tuple, Callable, Union
-import neotermcolor
-import re
-import pathlib
-import math
 import logging
+import math
+import os
+import pathlib
+import re
+import subprocess
+import sys
 import traceback
 import urllib.request
+from datetime import datetime
+from itertools import cycle
+from typing import Dict, List, Tuple, Callable, Union
+
+import joblib
+import neotermcolor
 
 # Multiple Colour Highlighting
 #     --> https://stackoverflow.com/questions/17236005/grep-output-with-multiple-colors
@@ -33,8 +37,215 @@ import urllib.request
 # Here "+" is used to create the "GROUP_SEPARATOR" to avoid wrong splitting when this program is used on itself
 GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
 COLOR_OUTPUT_TEXT: bool = True
-EXIT_CODE: int = 1
 logger = None
+g_EXIT_CODE: int = 1
+g_fms_settings: Union['FmsSettings', None] = None
+
+
+class FmsSettings:
+    def __init__(self):
+        self.GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
+        self.DEFAULT_EXT_EXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a ' \
+                                             'jar class db mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
+
+        self.d_debug: bool = False
+        self.v_verbose: bool = False
+        self.c_color: bool = False
+
+        self.c_context: int = 0
+
+        self.p_paths: List[str] = list()
+        self.r_recursives: List[str] = list()
+        self.ei_extensions: List[str] = list()
+        self.ee_exts_exclude: List[str] = list()
+
+        self.w_words: List[str] = list()
+        self.w_words_optional: List[str] = list()
+        self.g_group: List[str] = list()
+        self.g2_group: List[str] = list()
+        self.i_ignore_case: bool = False
+
+        self.c_color_str: str = ''
+        self.n_line_number: bool = False
+        self.u_url_name: bool = False
+        self.l_files_with_matches: bool = False
+        self.q_quite: bool = False
+
+        self.i_input_record_separator: str = ''
+        self.o_output_segment_separator: str = ''
+        self.cmd: str = ''
+
+    def initialize_from_argparse_namespace(self, args: argparse.Namespace):
+        # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
+        self.cache_path: pathlib.Path = pathlib.Path(pathlib.Path.home()) / '.cache' / 'fms'
+        self.d_debug: bool = args.debug
+        self.v_verbose: bool = args.verbose
+
+        self.c_context: int = args.C
+
+        self.p_paths: List[str] = args.path
+        self.r_recursives: List[str] = args.recursive
+        self.ei_extensions: List[str] = args.extensions
+        self.ee_exts_exclude: List[str] = args.extexclude
+
+        self.w_words: List[str] = args.w
+        self.w_words_optional: List[str] = args.W
+        self.g_group: List[str] = args.g
+        self.g2_group: List[str] = args.g2
+        self.i_ignore_case: bool = args.ignore_case
+
+        self.c_color_str: str = args.color
+        self.n_line_number: bool = args.line_number
+        self.u_url_name: bool = args.url_name
+        self.l_files_with_matches: bool = args.files_with_matches
+        self.q_quite: bool = args.Q
+
+        self.i_input_record_separator: str = args.input_record_separator
+        self.o_output_segment_separator: str = args.output_segment_separator
+        self.cmd: str = args.cmd
+
+        # ---
+
+        global logger
+        logger = logging.getLogger(__name__)
+        if self.d_debug:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+        logger_file_handler = logging.FileHandler('/dev/stderr')
+        logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
+        # logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
+        logger_file_handler.setFormatter(logger_formatter)
+        logger.addHandler(logger_file_handler)
+
+        logger.debug("Debugging is ON")
+        logger.debug(type(args))
+        logger.debug(args)
+
+        # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
+        logger.handlers[0].flush()
+
+        pass
+
+
+class FmsCache:
+    """
+    Generate text cache based on (File Absolute Path, File Size in Bytes, Last Modified Time in Nanoseconds)
+
+    Cache Mapping File Content (self.name_mapping_file):
+        unique_file_id (Used to assign a unique "cache file name" for each "cached file")
+        Key (File Absolute Path) -> Value (
+            Entry Creation Date (Useful in finding and deleting obsolete cached data),
+            Last Access Date (Updated on each access),
+            Tuple[
+                File Size in Bytes,
+                Last Modified Time in Nanoseconds
+            ] (Used to check whether cached data is latest or not),
+            Cache File Name (File Name in which cached data is stored using joblib.dump(...))
+        )
+    """
+
+    def __init__(self, fms_settings: FmsSettings):
+        self.fms_settings: FmsSettings = fms_settings
+        self.name_mapping_file: pathlib.Path = self.fms_settings.cache_path / "0_name_mapping"
+
+        self.unique_file_id: int = 0
+        self.name_mapping: Dict[str, List[datetime.date, datetime.date, Tuple[int, int], str]] = dict()
+        self.cache_updated: bool = False
+        if not self.name_mapping_file.parent.exists():
+            self.name_mapping_file.parent.mkdir(parents=True)
+        pass
+
+    def my_constructor(self) -> None:
+        self.cache_updated = False
+        if self.name_mapping_file.exists():
+            (self.unique_file_id, self.name_mapping) = joblib.load(self.name_mapping_file)
+        else:
+            self.unique_file_id = 0
+            self.name_mapping = dict()
+
+    def my_destructor(self) -> None:
+        if not self.cache_updated:
+            return
+        self.cache_updated = False
+        joblib.dump((self.unique_file_id, self.name_mapping), self.name_mapping_file, compress=2)
+
+    @staticmethod
+    def get_file_stats(file_path: pathlib.Path) -> Tuple[int, int]:
+        """It is assumed that Suffix+FileSizeInBytes+ModifiedTimeInNanoSeconds"""
+        # REFER: https://docs.python.org/3/library/pathlib.html#correspondence-to-tools-in-the-os-module
+        # REFER: https://stackoverflow.com/questions/2104080/how-can-i-check-file-size-in-python
+        #        https://docs.python.org/3/library/os.html#os.stat_result.st_size
+        #          st_size = Size of the file in bytes
+        #        https://docs.python.org/3/library/os.html#os.stat_result.st_mtime_ns
+        #          st_mtime_ns = Time of most recent content modification expressed in nanoseconds as an integer.
+        file_stats = file_path.stat()
+        return file_stats.st_size, file_stats.st_mtime_ns
+
+    def cache_check_file(self, file_path: pathlib.Path) -> Tuple[bool, bool]:
+        """
+        Returns 2 booleans
+            - False, False - File is not cached
+            - True , False - File is cached but not the latest version
+            - True , True  - Latest version of the file is cached
+        """
+        # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
+        if str(file_path.resolve()) in self.name_mapping.keys():
+            return True, FmsCache.get_file_stats(file_path) == self.name_mapping[str(file_path.resolve())][2]
+        return False, False
+
+    def cache_read_file(self, file_path: pathlib.Path) -> str:
+        """
+        Call this ONLY if 'cache_check_file(...)' returns:
+            - True, False
+            - True, True
+        """
+        self.cache_updated = True
+        self.name_mapping[str(file_path.resolve())][1] = datetime.now().date()  # Update cache entry access date
+        # TODO
+        raise NotImplementedError
+        # return ""
+
+    def cache_write_file(self, file_path: pathlib.Path, data: str) -> None:
+        """This will overwrite any old data"""
+        self.cache_updated = True
+        entry_creation_date = datetime.now().date()
+        file_id: str = str(self.unique_file_id)
+        if str(file_path.resolve()) in self.name_mapping.keys():
+            val = self.name_mapping[str(file_path.resolve())]
+            entry_creation_date = val[0]
+            file_id = val[-1]
+        else:
+            self.unique_file_id += 1
+        self.name_mapping[str(file_path.resolve())] = [
+            entry_creation_date,
+            datetime.now().date(),
+            FmsCache.get_file_stats(file_path),
+            file_id
+        ]
+        # TODO
+        raise NotImplementedError
+        pass
+
+
+class ReadAnyFile:
+    @staticmethod
+    def read_generic() -> bool:
+        raise NotImplementedError
+
+    @staticmethod
+    def can_read_generic() -> bool:
+        raise NotImplementedError
+
+
+class FmsReader:
+    @staticmethod
+    def read_generic_read_cache():
+        raise NotImplementedError
+
+    @staticmethod
+    def read_generic_write_cache():
+        raise NotImplementedError
 
 
 def debug_list(list_var: List, lname: str) -> None:
@@ -390,7 +601,6 @@ def highlight_words(file_segments_matched,
 
 if __name__ == '__main__':
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
-    import argparse
 
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
@@ -528,6 +738,12 @@ if __name__ == '__main__':
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
+
+    # TODO
+    # global g_fms_settings
+    # g_fms_settings = FmsSettings()
+    # g_fms_settings.initialize_from_argparse_namespace(my_parser.parse_args())
+
     logger = logging.getLogger(__name__)
     if args.debug:
         logger.setLevel(logging.DEBUG)
@@ -541,6 +757,7 @@ if __name__ == '__main__':
 
     logger.debug("Debugging is ON")
     logger.debug(args)
+    logger.debug(type(args))
     # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
     logger.handlers[0].flush()
 
@@ -735,7 +952,7 @@ if __name__ == '__main__':
         if (args.Q == False) or (len(file_segments_matched) > 0):
             if args.files_with_matches:  # If this is true, then Q flag is set to avoid false +ve
                 print(my_colored(input_file_path, 'magenta', attrs=['bold']))
-                EXIT_CODE = 0
+                g_EXIT_CODE = 0
                 continue
             if len(paths_list_to_process) > 1:
                 if args.url_name:
@@ -753,7 +970,7 @@ if __name__ == '__main__':
                     print('==> {} <=='.format(my_colored(input_file_path, 'white', attrs=['bold', 'underline'])))
 
             if len(file_segments_matched) > 0:
-                EXIT_CODE = 0
+                g_EXIT_CODE = 0
                 try:
                     highlight_words(file_segments_matched=file_segments_matched,
                                     words_list=search_parameters[4],
@@ -772,8 +989,8 @@ if __name__ == '__main__':
 
         gc.collect()
     pass
-    logger.debug("EXIT_CODE = {}".format(EXIT_CODE))
-    sys.exit(EXIT_CODE)
+    logger.debug("g_EXIT_CODE = {}".format(g_EXIT_CODE))
+    sys.exit(g_EXIT_CODE)
 
     # BEST WORKING
     # ps -e | fms -C 100000 -W '((0[1-9]|[1-9][0-9])(:[0-9]{2}){2} .*)' -W '(00:00:[1-9][0-9] .*)' -W '(00:(0[1-9]|[1-9][0-9]):[0-9]{2} .*)'
