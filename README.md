@@ -144,6 +144,8 @@ optional arguments:
   --cmd CMD             Command to use to read the input file and to write the output to
                         stdout. Insert {} in the command WITHOUT quotes to insert file name,
                         e.g. "pdftotext {} -"
+  --cache               Cache the text content of the files read for better speed in future
+                        file reads
   -D, --debug           Print debug information
 
 Enjoy the program :)

@@ -40,6 +40,7 @@ COLOR_OUTPUT_TEXT: bool = True
 logger = None
 g_EXIT_CODE: int = 1
 g_fms_settings: Union['FmsSettings', None] = None
+g_fms_cache: Union['FmsCache', None] = None
 
 
 class FmsSettings:
@@ -149,26 +150,26 @@ class FmsCache:
         self.fms_settings: FmsSettings = fms_settings
         self.name_mapping_file: pathlib.Path = self.fms_settings.cache_path / "0_name_mapping"
 
-        self.unique_file_id: int = 0
+        self.unique_file_id: int = 1
         self.name_mapping: Dict[str, List[datetime.date, datetime.date, Tuple[int, int], str]] = dict()
-        self.cache_updated: bool = False
+        self.cache_metadata_updated: bool = False
         if not self.name_mapping_file.parent.exists():
             self.name_mapping_file.parent.mkdir(parents=True)
         pass
 
     def my_constructor(self) -> None:
-        self.cache_updated = False
+        self.cache_metadata_updated = False
         if self.name_mapping_file.exists():
             (self.unique_file_id, self.name_mapping) = joblib.load(self.name_mapping_file)
         else:
-            self.unique_file_id = 0
+            self.unique_file_id = 1
             self.name_mapping = dict()
 
     def my_destructor(self) -> None:
-        if not self.cache_updated:
+        if not self.cache_metadata_updated:
             return
-        self.cache_updated = False
-        joblib.dump((self.unique_file_id, self.name_mapping), self.name_mapping_file, compress=2)
+        self.cache_metadata_updated = False
+        joblib.dump((self.unique_file_id, self.name_mapping), self.name_mapping_file, compress=1)
 
     @staticmethod
     def get_file_stats(file_path: pathlib.Path) -> Tuple[int, int]:
@@ -190,7 +191,8 @@ class FmsCache:
             - True , True  - Latest version of the file is cached
         """
         # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
-        if str(file_path.resolve()) in self.name_mapping.keys():
+        if (str(file_path.resolve()) in self.name_mapping.keys()) and \
+                (self.fms_settings.cache_path / self.name_mapping[str(file_path.resolve())][-1]).exists():
             return True, FmsCache.get_file_stats(file_path) == self.name_mapping[str(file_path.resolve())][2]
         return False, False
 
@@ -200,15 +202,15 @@ class FmsCache:
             - True, False
             - True, True
         """
-        self.cache_updated = True
+        self.cache_metadata_updated = True
+
+        # REFER: https://stackoverflow.com/questions/415511/how-to-get-the-current-time-in-python
         self.name_mapping[str(file_path.resolve())][1] = datetime.now().date()  # Update cache entry access date
-        # TODO
-        raise NotImplementedError
-        # return ""
+        return joblib.load(self.fms_settings.cache_path / self.name_mapping[str(file_path.resolve())][-1])
 
     def cache_write_file(self, file_path: pathlib.Path, data: str) -> None:
         """This will overwrite any old data"""
-        self.cache_updated = True
+        self.cache_metadata_updated = True
         entry_creation_date = datetime.now().date()
         file_id: str = str(self.unique_file_id)
         if str(file_path.resolve()) in self.name_mapping.keys():
@@ -223,29 +225,7 @@ class FmsCache:
             FmsCache.get_file_stats(file_path),
             file_id
         ]
-        # TODO
-        raise NotImplementedError
-        pass
-
-
-class ReadAnyFile:
-    @staticmethod
-    def read_generic() -> bool:
-        raise NotImplementedError
-
-    @staticmethod
-    def can_read_generic() -> bool:
-        raise NotImplementedError
-
-
-class FmsReader:
-    @staticmethod
-    def read_generic_read_cache():
-        raise NotImplementedError
-
-    @staticmethod
-    def read_generic_write_cache():
-        raise NotImplementedError
+        joblib.dump(data, self.fms_settings.cache_path / file_id, compress=2)
 
 
 def debug_list(list_var: List, lname: str) -> None:
@@ -271,7 +251,7 @@ def url_to_path(file_path_url: str) -> str:
     # This primarily converts things like '%20' ---> ' '
     file_url = urllib.request.url2pathname(file_path_url)
 
-    #  0      v index 7  
+    #  0      v index 7
     # "file:///home/student/..."
     file_path = file_url[7:]
     if os.path.exists(file_url):
@@ -284,30 +264,43 @@ def url_to_path(file_path_url: str) -> str:
 def read_file(file_read_command: Union[str, Callable[[str], Tuple[int, str]]],
               input_file_path: str,
               input_group_separator_raw: str,
-              add_line_number: bool) -> List:
-    if type(file_read_command) == str:
-        # Handle single quotes in file name
-        # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
-        # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
-        status_code, output = subprocess.getstatusoutput(
-            file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'")
-        )
+              add_line_number: bool,
+              store_in_cache: bool) -> List:
+    cache_status = g_fms_cache.cache_check_file(pathlib.Path(input_file_path))
+    # print(f'{store_in_cache=}, {cache_status=}')
+    if cache_status[0] == True and (cache_status[1] == True or pathlib.Path(input_file_path).suffix == '.pdf'):
+        # NOTE: We read text from cache even if PDF is updated, because generally PDF text is not changed
+        #       and only annotations are added to them which cause the cache to feel that the cached data is not latest
+        output = g_fms_cache.cache_read_file(pathlib.Path(input_file_path))
     else:
-        status_code, output = file_read_command(input_file_path)
-    output = output.rstrip()
-    # REFER: https://unix.stackexchange.com/questions/219438/remove-the-l-aka-f-ff-form-feed-page-break-character
-    # output.replace('', '')  # This is to remove the formfeed character
-    # output.replace('^L', '')  # This is to remove the formfeed character
-    if status_code != 0:
-        # ERROR occurred
-        print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path),
-              file=sys.stderr)
-        print("{}: status_code = {}".format(my_colored('Error', 'red', attrs=['bold']), str(status_code)),
-              file=sys.stderr)
-        print("{}: Output:".format(my_colored('Error', 'red', attrs=['bold'])), file=sys.stderr)
-        print(output, file=sys.stderr)
-        print("\nExiting...", file=sys.stderr)
-        sys.exit(status_code)
+        # print(f'IMP: reading from file')
+        if type(file_read_command) == str:
+            # Handle single quotes in file name
+            # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
+            # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
+            status_code, output = subprocess.getstatusoutput(
+                file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'")
+            )
+        else:
+            status_code, output = file_read_command(input_file_path)
+        output = output.rstrip()
+        if store_in_cache:
+            g_fms_cache.cache_write_file(pathlib.Path(input_file_path), output)
+
+        # REFER: https://unix.stackexchange.com/questions/219438/remove-the-l-aka-f-ff-form-feed-page-break-character
+        # output.replace('', '')  # This is to remove the formfeed character
+        # output.replace('^L', '')  # This is to remove the formfeed character
+        if status_code != 0:
+            # ERROR occurred
+            print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs=['bold']), input_file_path),
+                  file=sys.stderr)
+            print("{}: status_code = {}".format(my_colored('Error', 'red', attrs=['bold']), str(status_code)),
+                  file=sys.stderr)
+            print("{}: Output:".format(my_colored('Error', 'red', attrs=['bold'])), file=sys.stderr)
+            print(output, file=sys.stderr)
+            print("\nExiting...", file=sys.stderr)
+            g_fms_cache.my_destructor()
+            sys.exit(status_code)
 
     if input_group_separator_raw is not None:
         # This "replace" is required because single quotes are used in "eval" statements later
@@ -371,7 +364,8 @@ def smart_search(file_read_command: str,
                  ignore_case: bool,
                  uniq_words_list: List,
                  input_group_separator_raw: str,
-                 add_line_number: bool) -> List:
+                 add_line_number: bool,
+                 store_in_cache: bool) -> List:
     global GROUP_SEPARATOR
     # REFER: https://stackoverflow.com/questions/2168065/how-do-i-get-rid-of-line-separator-when-using-grep-with-context-lines/8840902
     command_to_run = ["grep", "-E", "--color=never", "--group-separator", GROUP_SEPARATOR, "-C", str(context_lines)]
@@ -380,7 +374,7 @@ def smart_search(file_read_command: str,
     # debug_list(words_list, "words_list")
     # group1 = subprocess.check_output(command_to_run + ['-n', words_list[0], input_file_path]).decode("utf-8").strip().split(GROUP_SEPARATOR)
     # eval(...) ensures that '\n' and other special characters are properly interpreted
-    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw, add_line_number)
+    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw, add_line_number, store_in_cache)
     # debug_list(group1, "group1")
     group2: List = list()
 
@@ -514,7 +508,7 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     if input_group_separator_raw is None:
         input_group_separator_raw = parameters['input_record_separator']
     return file_read_command, input_file_path, context_lines, ignore_case, \
-           uniq_words_list, input_group_separator_raw, add_line_number
+           uniq_words_list, input_group_separator_raw, add_line_number, parameters['cache']
 
 
 def highlight_words(file_segments_matched,
@@ -731,6 +725,9 @@ if __name__ == '__main__':
                            type=str,
                            help='Command to use to read the input file and to write the output to stdout. '
                                 'Insert {} in the command WITHOUT quotes to insert file name, e.g. "pdftotext {} -"')
+    my_parser.add_argument('--cache',
+                           action='store_true',
+                           help='Cache the text content of the files read for better speed in future file reads')
     my_parser.add_argument('-D',
                            '--debug',
                            action='store_true',
@@ -738,11 +735,10 @@ if __name__ == '__main__':
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
-
-    # TODO
-    # global g_fms_settings
-    # g_fms_settings = FmsSettings()
-    # g_fms_settings.initialize_from_argparse_namespace(my_parser.parse_args())
+    g_fms_settings = FmsSettings()
+    g_fms_settings.initialize_from_argparse_namespace(my_parser.parse_args())
+    g_fms_cache = FmsCache(g_fms_settings)
+    g_fms_cache.my_constructor()
 
     logger = logging.getLogger(__name__)
     if args.debug:
@@ -990,6 +986,7 @@ if __name__ == '__main__':
         gc.collect()
     pass
     logger.debug("g_EXIT_CODE = {}".format(g_EXIT_CODE))
+    g_fms_cache.my_destructor()
     sys.exit(g_EXIT_CODE)
 
     # BEST WORKING
