@@ -19,8 +19,12 @@ from datetime import datetime
 from itertools import cycle
 from typing import Dict, List, Tuple, Callable, Union
 
-import joblib
-import neotermcolor
+dependencies_missing = False
+try:
+    import joblib
+    import neotermcolor
+except:
+    dependencies_missing = True
 
 # Multiple Colour Highlighting
 #     --> https://stackoverflow.com/questions/17236005/grep-output-with-multiple-colors
@@ -595,6 +599,9 @@ def highlight_words(file_segments_matched,
 
 if __name__ == '__main__':
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
+    if(dependencies_missing):
+        print("Python dependencies missing, please install joblib and neotermcolor")
+        exit
 
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
