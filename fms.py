@@ -601,7 +601,7 @@ if __name__ == '__main__':
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
     if(dependencies_missing):
         print("Python dependencies missing, please install joblib and neotermcolor")
-        exit
+        exit()
 
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
