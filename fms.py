@@ -282,14 +282,13 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int, str]]],
             # Handle single quotes in file name
             # REFER: https://unix.stackexchange.com/questions/187651/how-to-echo-single-quote-when-using-single-quote-to-wrap-special-characters-in
             # REFER: https://stackoverflow.com/questions/1250079/how-to-escape-single-quotes-within-single-quoted-strings
+            # print(file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'"))
             status_code, output = subprocess.getstatusoutput(
                 file_read_command.format("'" + input_file_path.replace(r"'", r"'\''") + "'")
             )
         else:
             status_code, output = file_read_command(input_file_path)
         output = output.rstrip()
-        if store_in_cache:
-            g_fms_cache.cache_write_file(pathlib.Path(input_file_path), output)
 
         # REFER: https://unix.stackexchange.com/questions/219438/remove-the-l-aka-f-ff-form-feed-page-break-character
         # output.replace('', '')  # This is to remove the formfeed character
@@ -305,6 +304,9 @@ def read_file(file_read_command: Union[str, Callable[[str], Tuple[int, str]]],
             print("\nExiting...", file=sys.stderr)
             g_fms_cache.my_destructor()
             sys.exit(status_code)
+
+        if store_in_cache:
+            g_fms_cache.cache_write_file(pathlib.Path(input_file_path), output)
 
     if input_group_separator_raw is not None:
         # This "replace" is required because single quotes are used in "eval" statements later
@@ -378,7 +380,8 @@ def smart_search(file_read_command: str,
     # debug_list(words_list, "words_list")
     # group1 = subprocess.check_output(command_to_run + ['-n', words_list[0], input_file_path]).decode("utf-8").strip().split(GROUP_SEPARATOR)
     # eval(...) ensures that '\n' and other special characters are properly interpreted
-    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw, add_line_number, store_in_cache)
+    group1: List = read_file(file_read_command, input_file_path, input_group_separator_raw, add_line_number,
+                             store_in_cache)
     # debug_list(group1, "group1")
     group2: List = list()
 
@@ -599,9 +602,9 @@ def highlight_words(file_segments_matched,
 
 if __name__ == '__main__':
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
-    if(dependencies_missing):
-        print("Python dependencies missing, please install joblib and neotermcolor")
-        exit
+    if dependencies_missing:
+        print("Python dependencies missing, please install joblib and neotermcolor", file=sys.stderr)
+        sys.exit(1)
 
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
