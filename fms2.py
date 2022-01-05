@@ -6,12 +6,16 @@
 
 import argparse
 import atexit
+import errno
 import io
 import logging
+import os
 import pathlib
+import platform
 import re
 import subprocess
 import sys
+import tempfile
 import traceback
 import zipfile
 from datetime import datetime
@@ -30,7 +34,7 @@ try:
     import colorama  # Print colourful text (cross-platform)
     import neotermcolor
 
-    colorama.init()
+    colorama.init(strip=(platform.system() == 'Windows'))
 
     # NOTE: The Apache Tika toolkit detects and extracts metadata and text from over
     #       a thousand different file types (such as PDF, DOC, PPT, XLS, ...)
@@ -48,6 +52,7 @@ except:
     print("Please install python library dependencies using:\n\tpip install -r requirements.txt", file=sys.stderr)
     dependencies_missing = True
 
+g_IS_WINDOWS: bool = (platform.system() == 'Windows')
 g_logger: Union[logging.Logger, None] = None
 g_fms_settings: Union['FmsSettings', None] = None
 g_EXIT_CODE: int = 0
@@ -55,7 +60,7 @@ g_EXIT_CODE: int = 0
 
 def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
     global g_fms_settings, g_logger
-    if g_fms_settings.c_color:
+    if g_fms_settings.color_bool:
         return neotermcolor.colored(text, color, on_color, attrs)
         # res = ''
         # if color is not None:
@@ -76,93 +81,123 @@ def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
 
 
 class FmsSettings:
+    GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
+
+    # .a is "current ar archive", is a "static library" created with the `ar` utility
+    DEFAULT_EXT_EXCLUDE_LIST: str = 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
+                                    'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
+
     def __init__(self):
-        self.GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
-        self.DEFAULT_EXT_EXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a ' \
-                                             'jar class db mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
-
-        self.d_debug: bool = False
-        self.v_verbose: bool = False
-        self.c_color: bool = False
-
         self.c_context: int = 0
 
         self.p_paths: List[str] = list()
         self.r_recursives: List[str] = list()
         self.ei_extensions: List[str] = list()
+        self.ei_extensions_add: List[str] = list()
         self.ee_extensions_exclude: List[str] = list()
+        self.ee_extensions_exclude_subtract: List[str] = list()
 
-        self.w_words: List[str] = list()
-        self.w_words_optional: List[str] = list()
         self.g_group: List[str] = list()
         self.g2_group: List[str] = list()
+        self.w_words: List[str] = list()
+        self.w_words_optional: List[str] = list()
+
         self.i_ignore_case: bool = False
-
-        self.c_color_str: str = ''
         self.n_line_number: bool = False
-        self.u_url_name: bool = False
         self.l_files_with_matches: bool = False
-        self.q_quite: bool = False
+        self.q_quiet: bool = False
+        self.u_url_name: bool = False
+        self.color_str: str = ''
+        self.color_bool: bool = False  # extra
 
-        self.i_input_record_separator: str = ''
         self.o_output_segment_separator: str = ''
         self.cmd: str = ''
 
-    def initialize_from_argparse_namespace(self, args: argparse.Namespace):
-        # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
-        self.cache_path: pathlib.Path = pathlib.Path(pathlib.Path.home()) / '.cache' / 'fms'
-        self.d_debug: bool = args.debug
-        self.v_verbose: bool = args.verbose
+        self.cache: bool = False
+        self.cache_path: str = ''  # extra
 
-        self.c_context: int = args.C
+        self.verbose: bool = False
+        self.debug: bool = False
+
+    def initialize_from_argparse_namespace(self, args: argparse.Namespace):
+        global g_IS_WINDOWS
+
+        self.c_context: int = args.context
 
         self.p_paths: List[str] = args.path
         self.r_recursives: List[str] = args.recursive
         self.ei_extensions: List[str] = args.extensions
+        self.ei_extensions_add: List[str] = args.extensions_add
         self.ee_extensions_exclude: List[str] = args.extensions_exclude
+        self.ee_extensions_exclude_subtract: List[str] = args.extensions_exclude_subtract
 
-        self.w_words: List[str] = args.w
-        self.w_words_optional: List[str] = args.W
-        self.g_group: List[str] = args.g
-        self.g2_group: List[str] = args.g2
+        self.g_group: List[str] = args.group
+        self.g2_group: List[str] = args.group2
+        self.w_words: List[str] = args.word
+        self.w_words_optional: List[str] = args.Word
+
         self.i_ignore_case: bool = args.ignore_case
-
-        self.c_color_str: str = args.color
         self.n_line_number: bool = args.line_number
-        self.u_url_name: bool = args.url_name
         self.l_files_with_matches: bool = args.files_with_matches
-        self.q_quite: bool = args.Q
+        self.q_quiet: bool = args.quiet
+        self.u_url_name: bool = args.url_name
+        self.color_str: str = args.color
 
-        self.i_input_record_separator: str = args.input_record_separator
         self.o_output_segment_separator: str = args.output_segment_separator
         self.cmd: str = args.cmd
 
-        # ---
+        self.cache: bool = args.cache
 
-        global g_logger
-        g_logger = logging.getLogger(__name__)
-        if self.d_debug:
+        self.verbose: bool = args.verbose
+        self.debug: bool = args.debug
+
+        g_logger.debug(f'Debugging is {"ON" if self.debug else "OFF"}')
+        g_logger.debug(type(args))
+        g_logger.debug(args)
+
+    def initialize_data(self) -> None:
+        """Call this after setting all the command line parameters as variables of this class"""
+        global g_logger, g_IS_WINDOWS
+        if self.debug:
             g_logger.setLevel(logging.DEBUG)
         else:
             g_logger.setLevel(logging.INFO)
-        logger_file_handler = logging.FileHandler('/dev/stderr')
+        if g_IS_WINDOWS:
+            # NOTE: This can be used for Linux as well
+            # REFER: https://www.tutorialspoint.com/generate-temporary-files-and-directories-using-python
+            # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
+            logger_file_handler = logging.FileHandler(
+                (pathlib.Path(tempfile.gettempdir()) / 'fms_stderr.log').resolve())
+        else:
+            logger_file_handler = logging.FileHandler('/dev/stderr')
         logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
         # logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
         logger_file_handler.setFormatter(logger_formatter)
         g_logger.addHandler(logger_file_handler)
 
-        g_logger.debug("Debugging is ON")
-        g_logger.debug(type(args))
-        g_logger.debug(args)
-
         # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
         g_logger.handlers[0].flush()
 
-        pass
+        # ---
 
-    def initialize_data(self) -> None:
-        """Call this after setting all the command line parameters as variables of this class"""
+        # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
+        # REFER: https://stackoverflow.com/questions/22947427/getting-home-directory-with-pathlib
+        # REFER: https://www.freecodecamp.org/news/appdata-where-to-find-the-appdata-folder-in-windows-10/
+        #        The Local folder is used to store data that is specific to a single windows system,
+        #        which means data is not synced between multiple PCs.
+        self.cache_path: pathlib.Path = pathlib.Path(pathlib.Path.home()) / '.cache' / 'fms'
+        if g_IS_WINDOWS:
+            self.cache_path = pathlib.Path(pathlib.Path.home()) / 'AppData' / 'Local' / 'fms'
+        self.cache_path: str = self.cache_path.resolve()
+        # REFER: https://www.tutorialspoint.com/How-can-I-create-a-directory-if-it-does-not-exist-using-Python
+        try:
+            os.makedirs(self.cache_path)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                g_logger.error(f"{type(e)=}, {e=}")
+                raise  # This will re-raise the last exception that was active
 
+        # TODO
         pass
 
 
@@ -435,7 +470,7 @@ class ReadAnyFile:
              ' documents and unsupported versions like Biff5 Excel)',
         500: 'Error - Error while processing document (Internal error)'
     }
-    DEFAULT_LIST_2: str = 'pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
+    DEFAULT_LIST_2: str = 'text pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
                           'rtf dotx docm fodt ott'
 
     # REFER: https://stackoverflow.com/questions/39921087/a-openfile-r-a-readline-output-without-n
@@ -597,14 +632,15 @@ class FmsCache:
 
 
 def my_main():
+    global g_IS_WINDOWS, g_fms_settings
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
+    # REFER: https://stackoverflow.com/questions/19124304/what-does-metavar-and-action-mean-in-argparse-in-python
     # Create the parser
-    import platform
 
     # NOTE: `cmd_prefix` is used to provide command line parameter '-h' and '/h' on Linux and Windows respectively
     cmd_prefix = '-'
     # REFER: https://docs.python.org/3/library/platform.html#platform.system
-    if platform.system() == 'Windows':
+    if g_IS_WINDOWS:
         cmd_prefix = '/'
 
     my_parser = argparse.ArgumentParser(prog='fms.py',
@@ -621,6 +657,15 @@ def my_main():
 
     # Add the arguments
     my_parser.add_argument('--version', action='version')
+
+    my_parser.add_argument('-C',
+                           '--context',
+                           metavar="CONTEXT_LINE_RANGE",
+                           action='store',
+                           type=int,
+                           default=7,
+                           help='Number of consecutive lines which should satisfy the query-words [default: 7]')
+
     my_parser.add_argument('-p',
                            '--path',
                            action='append',
@@ -633,105 +678,107 @@ def my_main():
                            nargs='+',
                            type=str,
                            help='The list of paths to be used for recursive search')
-    # Add -m options for mime type
-    # TODO: add comment that -x and -X are matched case insensitive with file extension
+
+    # TODO: Add -m options for mime type (optional, not sure if such an option is required or not)
+    # TODO: Add comment that -x and -X are matched case insensitive with file extension
     my_parser.add_argument('-x',
                            '--extensions',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions only to be searched for -r flag (Example Usage: -x md '
-                                '-x pdf OR -x "md pdf") (Note: for "file.tar.gz" only "-x gz" should be used)')
-    my_parser.add_argument('-x2',
-                           '--extensions-more',
+                           help='Files with these extensions only to be searched for -r flag • (Example Usage: -x md '
+                                '-x pdf OR -x "md pdf") • (Note: for "file.tar.gz" only "-x gz" should be used)')
+    my_parser.add_argument('-X',
+                           '--extensions-add',
                            action='append',
                            nargs='+',
                            type=str,
                            help=f'DEFAULT_LIST ({ReadAnyFile.DEFAULT_LIST_2}) + '
                                 f'Files with these extensions to be searched for -r flag')
-    # .a is "current ar archive", is a "static library" created with the `ar` utility
-    DEFAULT_EXTEXCLUDE_LIST: str = 'out exe pkl ttf otf eot jpeg jpg png ppt xlsx 7z rar zip tar gz a jar class db ' \
-                                   'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
-    my_parser.add_argument('-X',
+    my_parser.add_argument('-y',
                            '--extensions-exclude',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions to be excluded from being searched for -r flag (Example '
-                                'Usage: -X tex -X gz OR -x "tex gz") (Note: for "file.tar.gz" only "-X gz" should be '
-                                'used) (Note: -X gets priority over -x) (Default exclude list will be used if no ' \
-                                'parameters are passed, or "defaults" is passed as '
-                                'a parameter: {})'.format(DEFAULT_EXTEXCLUDE_LIST))
-    my_parser.add_argument('-i',
-                           '--ignore-case',
-                           action='store_true',
-                           help='Ignore case while searching')
-    my_parser.add_argument('-l',
-                           '--files-with-matches',
-                           action='store_true',
-                           help='Supress normal output and just print the file names which satisfy the search query')
-    my_parser.add_argument('-C',
-                           metavar='--context',
-                           type=int,
-                           default=7,
-                           help='Number of lines in the context [default: 7]')
-    my_parser.add_argument('-g',
-                           metavar='--group',
+                           help='Files with these extensions to be excluded from being searched for -r flag • (Example '
+                                'Usage: -y tex -y gz OR -y "tex gz") • (Note: for "file.tar.gz" only "-y gz" should be '
+                                'used) • (Note: -y gets priority over -x and -X) • (Default exclude list will be used '
+                                'if no parameters are passed, or "defaults" is passed as '
+                                'a parameter: {})'.format(FmsSettings.DEFAULT_EXT_EXCLUDE_LIST))
+    my_parser.add_argument('-Y',
+                           '--extensions-exclude-subtract',
                            action='append',
-                           # nargs='?',
+                           nargs='+',
+                           type=str,
+                           help=f'DEFAULT_LIST ({ReadAnyFile.DEFAULT_LIST_2}) - '
+                                f'Files with these extensions to be excluded from being searched for -r flag')
+
+    my_parser.add_argument('-g',
+                           '--group',
+                           action='append',
+                           nargs='+',
                            type=str,
                            help='Any ONE white space separated group of words to search '
                                 '(this gets priority over -w parameter)')
-    my_parser.add_argument('-g2',
-                           metavar='--group2',
+    my_parser.add_argument('--group2',
                            action='append',
-                           # nargs='?',
+                           nargs='+',
                            type=str,
                            help='Any TWO white space separated group of words to search '
                                 '(this gets priority over -w parameter)')
     my_parser.add_argument('-w',
-                           metavar='--word',
+                           '--word',
                            action='append',
                            nargs='+',
                            type=str,
                            help='Word to search')
     my_parser.add_argument('-W',
-                           metavar='--Word',
+                           '--Word',
                            action='append',
                            nargs='+',
                            type=str,
                            help='Optional words to search')
-    my_parser.add_argument('--color',
-                           type=str,
-                           default='auto',
-                           help="Can either be auto, always or never [default: auto]")
-    my_parser.add_argument('-u',
-                           '--url-name',
+
+    my_parser.add_argument('-i',
+                           '--ignore-case',
                            action='store_true',
-                           help='Print clickable file names')
+                           help='Ignore case while searching')
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
-                           help='Print line number (Note: printing line numbers may cause problem -I '
+                           # TODO: Update the below statement once the search logic is finalized
+                           help='Print line number (Note: printing line numbers may cause problem with -I '
                                 'parameter and REGEX which use "^")')
-    my_parser.add_argument('-v',
-                           '--verbose',
+    my_parser.add_argument('-l',
+                           '--files-with-matches',
                            action='store_true',
-                           help='Print expression highlighted and number of segments which satisfied the '
-                                'search conditions (Bug: content printed because of this flag will be '
-                                'colored for --color=auto even if the output is not directed to a TTY)')
-    my_parser.add_argument('-Q',
+                           help='Suppress normal output and just print the file names which satisfy the search query')
+    my_parser.add_argument('-q',
+                           '--quiet',
                            action='store_true',
                            help='Do not print anything for files in which no results found')
-    my_parser.add_argument('-I',
-                           '--input-record-separator',
+    my_parser.add_argument('-u',
+                           '--url-name',
+                           action='store_true',
+                           help='Print clickable file names on terminal')
+    my_parser.add_argument('--color',
+                           metavar='WHEN',
                            action='store',
                            type=str,
-                           help='String to separate the input based on the record separator. '
-                                'This input will be evaluated as python string. So, to use '
-                                'newline followed by two hyphen, just write "\\n--". '
-                                'Note: input will be evaluated using python syntax. Hence, no need '
-                                'to make bash correctly interpret special characters such as "\\n" or "\\t"')
+                           default='auto',
+                           help="Can either be auto, always or never [default: auto]")
+
+    # NOTE: This features is being removed because it has very very less use, increases
+    #       the complexity of code and reduces the efficiency of the program
+    # my_parser.add_argument('-I',
+    #                        '--input-record-separator',
+    #                        action='store',
+    #                        type=str,
+    #                        help='String to separate the input based on the record separator. '
+    #                             'This input will be evaluated as python string. So, to use '
+    #                             'newline followed by two hyphen, just write "\\n--". '
+    #                             'Note: input will be evaluated using python syntax. Hence, no need '
+    #                             'to make bash correctly interpret special characters such as "\\n" or "\\t"')
     my_parser.add_argument('-O',
                            '--output-segment-separator',
                            action='store',
@@ -739,31 +786,47 @@ def my_main():
                            default='--',
                            help='String to separate the output segments which matched the pattern [default: --]')
     my_parser.add_argument('--cmd',
-                           action='store',
+                           action='append',
+                           nargs='+',
                            type=str,
                            help='Command to use to read the input file and to write the output to stdout. '
                                 'Insert {} in the command WITHOUT quotes to insert file name, e.g. "pdftotext {} -"')
     my_parser.add_argument('--cache',
                            action='store_true',
-                           help='Cache the text content of the files read for better speed in future file reads')
-    my_parser.add_argument('-D',
-                           '--debug',
+                           help='Cache the text content of the files read for better speed in future file reads '
+                                '(text files will not be caches as there is no performance gain in that case)')
+
+    my_parser.add_argument('--verbose',
+                           action='store_true',
+                           help='Print expression highlighted and number of segments which satisfied the '
+                                'search conditions (Bug: content printed because of this flag will be '
+                                'colored for --color=auto even if the output is not directed to a TTY)')
+    my_parser.add_argument('--debug',
                            action='store_true',
                            help='Print debug information')
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
+    print(args)
+    g_fms_settings.initialize_from_argparse_namespace(args)
+    g_fms_settings.initialize_data()
 
 
 def exit_handler():
     # Try Except is used to handle the case where "colorama" is not installed
+    global g_logger
+    g_logger.info('exit_handler called')
     try:
         colorama.deinit()
-        print('exit_handler')
     except:
         pass
 
 
 atexit.register(exit_handler)
+# noinspection PyRedeclaration
+g_logger = logging.getLogger(__name__)
+# noinspection PyRedeclaration
+g_fms_settings = FmsSettings()
+
 if __name__ == '__main__':
     my_main()
