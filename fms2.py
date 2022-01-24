@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-#!/usr/bin/python3
+# REFER: https://unix.stackexchange.com/a/29611
+# REFER: https://unix.stackexchange.com/questions/12736/how-does-usr-bin-env-know-which-program-to-use/12751#12751
 
 # Copyright (C) 2021-2022 Fenil Mehta <fenilgmehta@gmail.com>
 # All Rights Reserved.
