@@ -15,6 +15,7 @@ import subprocess
 import sys
 import traceback
 import urllib.request
+import zipfile
 from datetime import datetime
 from itertools import cycle
 from typing import Dict, List, Tuple, Callable, Union
@@ -423,9 +424,23 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
         # REFER: https://askubuntu.com/a/1140942
         file_read_command = r"catdoc {}"
     elif file_extension in ('.docx', '.dotx', '.docm'):
-        # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
-        # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
-        file_read_command = r"unzip -p {} 'word/document.xml' | sed 's#<w:pPr>#\n#g' | grep '<w:t' | sed 's/<[^<]*>//g'"
+        # # REFER: https://github.com/pzaich/doc_ripper/blob/master/lib/doc_ripper/formats/docx_ripper.rb
+        # # file_read_command = r"unzip -p {} | grep '<w:t' | sed 's/<[^<]*>//g' | grep -v '^[[:space:]]*$'"
+        # file_read_command = r"unzip -p {} 'word/document.xml' | sed 's#<w:pPr>#\n#g' | grep '<w:t' | sed 's/<[^<]*>//g'"
+
+        # # NOTE: This is Pythonic version of the above command line technique
+        def my_read_docx(file_path):
+            # NEW Method
+            # a = zipfile.ZipFile(file_path,'r')
+            # b = a.open('word/document.xml')
+            # c = b.read()
+            c = zipfile.ZipFile(file_path, 'r').open('word/document.xml').read()
+            d = re.sub(r'<w:pPr>', '\n', c.decode())
+            e = list(filter(lambda x: r'<w:t' in x, d.splitlines()))
+            f = [re.sub(r'<[^<]*>', '', i) for i in e]
+            return 0, '\n'.join(f)
+
+        file_read_command = my_read_docx
         #                              main text^    new line formatting^
         # TODO: compare the below with above
         # REFER: https://stackoverflow.com/questions/5671988/how-to-extract-just-plain-text-from-doc-docx-files
