@@ -129,3 +129,5 @@ dmypy.json
 .pyre/
 
 .idea/
+.vscode/
+z_offline_only_testing/
