@@ -18,7 +18,7 @@ import urllib.request
 import zipfile
 from datetime import datetime
 from itertools import cycle
-from typing import Dict, List, Tuple, Callable, Union
+from typing import Dict, List, Tuple, Callable, Union, Any
 
 dependencies_missing = False
 try:
@@ -414,7 +414,7 @@ def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     file_extension: str = str(pathlib.Path(input_file_path).suffix).lower()
     # NOTE: --show-nonprinting was creating issues with unicode strings, example: 𝑖 = 𝑗
     # file_read_command: str = r'cat --show-nonprinting {}'  # use ^ and M- notation, except for LFD and TAB
-    file_read_command: str = r'cat {}'
+    file_read_command: Union[str, Any] = r'cat {}'
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
     elif file_extension == '.pdf':
@@ -545,7 +545,7 @@ def highlight_words(file_segments_matched,
     #         words_list[i] = words_list[i].lower()
     global COLOR_OUTPUT_TEXT
 
-    def bash_run(command_to_run: str, input: str) -> str:
+    def bash_run(command_to_run: List[str], input: str) -> str:
         res = subprocess.run(command_to_run, stdout=subprocess.PIPE, text=True, input=input)
         if (res.stderr is not None) and (res.stderr != ''):
             print(f"ERROR COMMAND: \'{command_to_run}\'")
