@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #!/usr/bin/python3
 
-# Copyright (C) 2021 Fenil Mehta <fenilgmehta@gmail.com>
+# Copyright (C) 2021-2022 Fenil Mehta <fenilgmehta@gmail.com>
 # All Rights Reserved.
 
 import argparse
