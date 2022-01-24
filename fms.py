@@ -411,7 +411,9 @@ def smart_search(file_read_command: str,
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     input_group_separator_raw = None
     file_extension: str = str(pathlib.Path(input_file_path).suffix).lower()
-    file_read_command: str = r'cat --show-nonprinting {}'  # use ^ and M- notation, except for LFD and TAB
+    # NOTE: --show-nonprinting was creating issues with unicode strings, example: 𝑖 = 𝑗
+    # file_read_command: str = r'cat --show-nonprinting {}'  # use ^ and M- notation, except for LFD and TAB
+    file_read_command: str = r'cat {}'
     if parameters['cmd'] is not None:
         file_read_command = parameters['cmd']
     elif file_extension == '.pdf':
