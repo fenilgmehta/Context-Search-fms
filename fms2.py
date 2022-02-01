@@ -234,12 +234,17 @@ class ReadAnyFile:
 
         # METHODs
         # Tika: Apache Java Library
-        #     - This is the BEST as compared to the below techniques.
-        #     - Correct order of paragraphs, and proper splitting of words and lines.
-        #     - Parsed annotations as well.
+        #     - This is the BEST as compared to the below techniques
+        #     - Correct order of paragraphs (sometimes better than "pdfminer.six"), and proper splitting of words and lines
+        #     - Parsed annotations and PDF Content Index as well
+        #     - Code and Equations are parsed better than "pdfminer.six"
+        # pdfminer.six - Python Lib (https://pypi.org/project/pdfminer.six/)
+        #     - In some places it was better than Tika, sometimes it was poor
+        #     - Correct order of paragraphs, and proper splitting of words and lines (generally better than Tika)
+        #     - Did NOT parse annotations
         # pdftotext: Command line tool (sudo apt install) (used in old `fms`)
-        #     - The order of content was not perfect. It was as thought we did CTRL+A and CTRL+C to get the text.
-        #     - Did NOT parse annotations.
+        #     - The order of content was not perfect. It was as thought we did CTRL+A and CTRL+C to get the text
+        #     - Did NOT parse annotations
         #     - Recoll app uses this (Text extraction of "Rivet research paper" PDF was same as that of `pdftotext`)
         # PyPDF2 and PyPDF4: Python Lib (pip install)
         #     - https://github.com/mstamy2/PyPDF2
@@ -262,12 +267,17 @@ class ReadAnyFile:
         # 1. Tika: Apache Java Library
         #     - Overall good
         #     - Did not parse hyperlinks inside words
+        #     - Would parse numbers/bullet points in lists
         # 2. catdoc: Command line tool (sudo apt install) (used in old `fms`)
         #     - Would parse hyperlinks inside words
         #     - Would NOT parse numbers/bullet points in lists
         # 3. Recoll: Application
         #     - When opened the doc in Okular app, it seemed to render the same thing
         # 4. CTRL+A, CTRL+C: Manual way
+        # 5. textract: Python Library (internally it used `antiword`)
+        #     - Would parse hyperlinks inside words
+        #     - Would parse numbers/bullet points in lists
+        #     - Converts '\n' to r'\n' (so, I used `textract.process('dummy.doc').decode()`)
 
         # TODO: find a better way to extract text from '.rtf'
         # REFER: https://askubuntu.com/a/1140942
@@ -280,7 +290,11 @@ class ReadAnyFile:
 
     @staticmethod
     def read_docx(file_path: str) -> Tuple[int, str]:
+        # Had tried using `import docx`, but I would not extract all text easily.
+        # Example, it would only extract text from paragraphs, we have to separately extract text from tables
+
         # # Python Equivalent of OLD Method (command line technique)
+        # # REFER: https://stackoverflow.com/questions/19371860/python-open-file-in-zip-without-temporarily-extracting-it
         # a = zipfile.ZipFile(file_path,'r')
         # b = a.open('word/document.xml')
         # c = b.read()
@@ -304,6 +318,9 @@ class ReadAnyFile:
         # # REFER: https://stackoverflow.com/questions/5671988/how-to-extract-just-plain-text-from-doc-docx-files
         # # REFER: https://stackoverflow.com/questions/15557573/how-to-use-catdoc-to-display-dock-file-encoded-in-utf-8
         # file_read_command = r"unzip -p {} 'word/document.xml' | sed -e 's#<w:pPr>#\n#g' | sed -e 's/<[^>]\{1,\}>//g; s/[^[:print:]]\{1,\}//g'"
+
+        # # NOT Tried/Tested
+        # # Can also look at: https://github.com/mikemaccana/python-docx/blob/master/example-extracttext.py
         # # REFER: https://stackoverflow.com/questions/25228106/how-to-extract-text-from-an-existing-docx-file-using-python-docx
         # # Also look at: https://etienned.github.io/posts/extract-text-from-word-docx-simply/
         pass
@@ -483,6 +500,7 @@ class ReadAnyFile:
     # REFER: https://repo1.maven.org/maven2/org/apache/tika/tika-server/1.28/tika-server-1.28-bin.zip
     #        README.md file inside this zip
     # REFER: https://cwiki.apache.org/confluence/display/TIKA/TikaServer#:~:text=resources%20may%20return
+    # Got to know about Tika from: https://stackoverflow.com/a/51905584
     # -----------------
     # HTTP Return Codes
     #   `200` - Ok
