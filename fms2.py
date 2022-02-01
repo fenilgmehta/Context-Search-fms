@@ -10,6 +10,7 @@ import atexit
 import errno
 import io
 import logging
+import mimetypes
 import os
 import pathlib
 import platform
@@ -419,7 +420,33 @@ class ReadAnyFile:
         #   file.py -> text/x-python
         # TODO: Not sure whether to use "in" or "=="
         # return 'text' in magic.from_file(file_path, mime=True)
-        return 'text' == magic.from_file(file_path, mime=True)[:4].lower()
+
+        # # TODO: This technique does not work always. So, have to add all common text file extensions to the list
+        # #       Example: I did
+        # #                $ pdftotext RivetPaper.pdf - > RivetPaper.txt
+        # #                $ file RivetPaper.txt  # output ---> data
+        # #                python magic with "mime=True" gave "application/octet-stream" and with "mime=False" gave "data"
+        # # print(magic.from_file(file_path, mime=True))
+        # # print(magic.from_file(file_path, mime=False))
+        # # os.system(f"file '{file_path}'")
+        # return 'text' == magic.from_file(file_path, mime=True)[:4].lower()
+
+        # REFER: https://github.com/xfce-mirror/catfish/blob/2ec27e912685ffb43ec45bdb5eb694d6973e4963/catfish/CatfishSearchEngine.py#L530
+        # This technique is used by XFCE `catfish` tool
+        mime = str(mimetypes.guess_type(file_path)[0])
+        text_list = ('ardour', 'audacity', 'desktop', 'document',
+                     'fontforge', 'java', 'json', 'm4', 'mbox',
+                     'message', 'mimearchive', 'msg', 'none', 'perl',
+                     'pgp-keys', 'php', 'postscript', 'rtf',
+                     'ruby', 'shellscript', 'spreadsheet', 'sql',
+                     'subrip', 'text', 'troff', 'url', 'winhlp',
+                     'x-bittorent', 'x-cue', 'x-extension-cfg',
+                     'x-glade', 'x-mpegurl', 'x-sami', 'x-theme',
+                     'x-trash', 'xml', 'xpixmap', 'yaml')
+        for filetype in text_list:
+            if filetype in mime.lower():
+                return True
+        return False
 
     @staticmethod
     def can_read_generic(file_path: str) -> bool:
