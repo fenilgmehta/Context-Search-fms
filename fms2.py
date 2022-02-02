@@ -86,6 +86,15 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
         #     else:
         #         g_logger.error(f'Incorrect value in attrs="{i}"')
         # return res + text + colorama.Style.RESET_ALL
+
+        # Technique 3 - rich lib
+        # REFER: https://rich.readthedocs.io/en/latest/reference/style.html#rich.style.Style.render
+        # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style
+        # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style.render
+        # bold = True if attrs.lower() == 'bold' else None
+        # dim = True if attrs.lower() == 'dim' else None
+        # return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render("Hi")
+
     return text
 
 
