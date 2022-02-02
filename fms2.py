@@ -23,20 +23,25 @@ import zipfile
 from datetime import datetime
 from typing import Union, Tuple, List, Dict
 
+g_IS_WINDOWS: bool = (platform.system() == 'Windows')
+g_logger: Union[logging.Logger, None] = None
+g_fms_settings: Union['FmsSettings', None] = None
+g_EXIT_CODE: int = 0
 dependencies_missing = False
 try:
-    import joblib  # Only required for FmsCache
-    import magic  # Check file type
-
-    # REFER: https://github.com/willmcgugan/rich/
-    import rich
-    from rich.logging import RichHandler
+    # Print colourful text on terminal
+    # REFER: https://github.com/alttch/neotermcolor
+    import neotermcolor  # It is a fork of old good "termcolor" with new features (not cross-platform)
 
     # REFER: https://github.com/tartley/colorama/
-    import colorama  # Print colourful text (cross-platform)
-    import neotermcolor
+    import colorama  # Print colourful terminal text (cross-platform)
 
-    colorama.init(strip=(platform.system() == 'Windows'))
+    colorama.init(strip=g_IS_WINDOWS)
+
+    # REFER: https://github.com/Textualize/rich
+    # REFER: https://github.com/willmcgugan/rich/ (This gets redirected to the above link)
+    from rich.style import Style as rich_Style
+    from rich.logging import RichHandler as rich_RichHandler
 
     # NOTE: The Apache Tika toolkit detects and extracts metadata and text from over
     #       a thousand different file types (such as PDF, DOC, PPT, XLS, ...)
@@ -48,16 +53,15 @@ try:
     #       REFER: https://github.com/kivy/pyjnius
     # NOTE: Other python lib for same task but provide limited functionalities
     #       REFER: https://github.com/deanmalmgren/textract/
+    #              https://textract.readthedocs.io/en/latest/index.html (lists all supported file types)
     #              https://textract.readthedocs.io/en/latest/python_package.html
     from tika import parser as tika_parser
+
+    # Only required for FmsCache
+    import joblib
 except:
     print("Please install python library dependencies using:\n\tpip install -r requirements.txt", file=sys.stderr)
     dependencies_missing = True
-
-g_IS_WINDOWS: bool = (platform.system() == 'Windows')
-g_logger: Union[logging.Logger, None] = None
-g_fms_settings: Union['FmsSettings', None] = None
-g_EXIT_CODE: int = 0
 
 
 def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
