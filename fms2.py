@@ -64,21 +64,24 @@ except:
     dependencies_missing = True
 
 
-def my_colored(text: str, color=None, on_color=None, attrs=None) -> str:
+def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = None) -> str:
     global g_fms_settings, g_logger
     if g_fms_settings.color_bool:
+        # Technique 1 - neotermcolor lib
         return neotermcolor.colored(text, color, on_color, attrs)
+
+        # Technique 2 - colorama lib
         # res = ''
         # if color is not None:
-        #     res += eval(f'"colorama.Fore.{color.upper()}"')
+        #     res += eval(f'colorama.Fore.{color.upper()}')
         # if on_color is not None:
-        #     res += eval(f'"colorama.Back.{color.upper()}"')
-        # if type(attrs) is not List:
+        #     res += eval(f'colorama.Back.{on_color.upper()}')
+        # if type(attrs) is not list:
         #     attrs = [attrs]
         # for i in attrs:
-        #     if i == 'bold':
+        #     if i.lower() == 'bold':
         #         res += colorama.Style.BRIGHT
-        #     elif i == 'dim':
+        #     elif i.lower() == 'dim':
         #         res += colorama.Style.DIM
         #     else:
         #         g_logger.error(f'Incorrect value in attrs="{i}"')
