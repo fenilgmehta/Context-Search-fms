@@ -76,15 +76,12 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
         #     res += eval(f'colorama.Fore.{color.upper()}')
         # if on_color is not None:
         #     res += eval(f'colorama.Back.{on_color.upper()}')
-        # if type(attrs) is not list:
-        #     attrs = [attrs]
-        # for i in attrs:
-        #     if i.lower() == 'bold':
-        #         res += colorama.Style.BRIGHT
-        #     elif i.lower() == 'dim':
-        #         res += colorama.Style.DIM
-        #     else:
-        #         g_logger.error(f'Incorrect value in attrs="{i}"')
+        # if attrs.lower() == 'bold':
+        #     res += colorama.Style.BRIGHT
+        # elif attrs.lower() == 'dim':
+        #     res += colorama.Style.DIM
+        # else:
+        #     g_logger.error(f'Incorrect value in attrs="{attrs}"')
         # return res + text + colorama.Style.RESET_ALL
 
         # Technique 3 - rich lib
