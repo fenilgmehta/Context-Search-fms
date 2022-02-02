@@ -482,7 +482,7 @@ class ReadAnyFile:
     def can_read_generic(file_path: str) -> bool:
         # NOTE: We use suffix[1:] because the first letter will be a dot ('.')
         file_extension: str = str(pathlib.Path(file_path).suffix).lower()[1:]
-        can_read: bool = file_extension in 'pdf doc rtf docx dotx docm fodt odt ott epub xlsx ods pptx'.split()
+        can_read: bool = file_extension in 'txt md pdf doc rtf docx dotx docm fodt odt ott epub xlsx ods pptx'.split()
         return can_read or ReadAnyFile.is_text_file(file_path)
 
     @staticmethod
