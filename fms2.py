@@ -66,16 +66,15 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
     :return: string which can be printed using "print" and decoration will be applied automatically
     """
     global g_fms_settings, g_logger
-    if g_fms_settings.color_bool:
-        # Technique 3 - rich lib
-        # REFER: https://rich.readthedocs.io/en/latest/reference/style.html#rich.style.Style.render
-        # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style
-        # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style.render
-        bold = True if attrs is not None and attrs.lower() == 'bold' else None
-        dim = True if attrs is not None and attrs.lower() == 'dim' else None
-        return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render(text)
-
-    return text
+    if not g_fms_settings.color_bool:
+        return text
+    # Technique 3 - rich lib
+    # REFER: https://rich.readthedocs.io/en/latest/reference/style.html#rich.style.Style.render
+    # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style
+    # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style.render
+    bold = True if attrs is not None and attrs.lower() == 'bold' else None
+    dim = True if attrs is not None and attrs.lower() == 'dim' else None
+    return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render(text)
 
 
 class FmsSettings:
