@@ -51,7 +51,7 @@ try:
 
     # Only required for FmsCache
     import joblib
-except:
+except ModuleNotFoundError:
     print("Please install python library dependencies using:\n\tpip install -r requirements.txt", file=sys.stderr)
     dependencies_missing = True
 
