@@ -858,9 +858,9 @@ def exit_handler():
     global g_logger
     g_logger.info('exit_handler called')
     try:
-        colorama.deinit()
-    except:
         pass
+    except Exception as e:
+        g_logger.error(e)
 
 
 atexit.register(exit_handler)
