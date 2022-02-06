@@ -29,17 +29,9 @@ g_fms_settings: Union['FmsSettings', None] = None
 g_EXIT_CODE: int = 0
 dependencies_missing = False
 try:
-    # Print colourful text on terminal
-    # REFER: https://github.com/alttch/neotermcolor
-    import neotermcolor  # It is a fork of old good "termcolor" with new features (not cross-platform)
-
-    # REFER: https://github.com/tartley/colorama/
-    import colorama  # Print colourful terminal text (cross-platform)
-
-    colorama.init(strip=g_IS_WINDOWS)
-
     # REFER: https://github.com/Textualize/rich
     # REFER: https://github.com/willmcgugan/rich/ (This gets redirected to the above link)
+    # Works cross-platform
     from rich.style import Style as rich_Style
     from rich.logging import RichHandler as rich_RichHandler
 
@@ -67,30 +59,13 @@ except:
 def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = None) -> str:
     global g_fms_settings, g_logger
     if g_fms_settings.color_bool:
-        # Technique 1 - neotermcolor lib
-        return neotermcolor.colored(text, color, on_color, attrs)
-
-        # Technique 2 - colorama lib
-        # res = ''
-        # if color is not None:
-        #     res += eval(f'colorama.Fore.{color.upper()}')
-        # if on_color is not None:
-        #     res += eval(f'colorama.Back.{on_color.upper()}')
-        # if attrs.lower() == 'bold':
-        #     res += colorama.Style.BRIGHT
-        # elif attrs.lower() == 'dim':
-        #     res += colorama.Style.DIM
-        # else:
-        #     g_logger.error(f'Incorrect value in attrs="{attrs}"')
-        # return res + text + colorama.Style.RESET_ALL
-
         # Technique 3 - rich lib
         # REFER: https://rich.readthedocs.io/en/latest/reference/style.html#rich.style.Style.render
         # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style
         # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style.render
-        # bold = True if attrs.lower() == 'bold' else None
-        # dim = True if attrs.lower() == 'dim' else None
-        # return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render("Hi")
+        bold = True if attrs.lower() == 'bold' else None
+        dim = True if attrs.lower() == 'dim' else None
+        return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render("Hi")
 
     return text
 
