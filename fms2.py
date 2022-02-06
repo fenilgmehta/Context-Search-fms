@@ -57,6 +57,14 @@ except:
 
 
 def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = None) -> str:
+    """
+    Works cross-platform without any issue
+    :param text: string which is to be colored
+    :param color: the color of the text
+    :param on_color: background of the text
+    :param attrs: "bold" or "dim"
+    :return: string which can be printed using "print" and decoration will be applied automatically
+    """
     global g_fms_settings, g_logger
     if g_fms_settings.color_bool:
         # Technique 3 - rich lib
