@@ -678,16 +678,10 @@ def my_main():
     # REFER: https://stackoverflow.com/questions/19124304/what-does-metavar-and-action-mean-in-argparse-in-python
     # Create the parser
 
-    # NOTE: `cmd_prefix` is used to provide command line parameter '-h' and '/h' on Linux and Windows respectively
-    cmd_prefix = '-'
-    # REFER: https://docs.python.org/3/library/platform.html#platform.system
-    if g_IS_WINDOWS:
-        cmd_prefix = '/'
-
     my_parser = argparse.ArgumentParser(prog='fms.py',
                                         description='Smart multi-word search across multiples lines',
                                         epilog='Enjoy the program :)',
-                                        prefix_chars=cmd_prefix,
+                                        prefix_chars='-',
                                         fromfile_prefix_chars='@',
                                         allow_abbrev=False,
                                         add_help=True)
