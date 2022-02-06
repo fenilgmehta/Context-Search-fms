@@ -217,8 +217,8 @@ class ReadAnyFile:
             )
             return status_code, output
         except Exception as e:
-            logger.error(e)
-            logger.error(traceback.format_exc())
+            g_logger.error(e)
+            g_logger.error(traceback.format_exc())
         return -1, ""
 
     @staticmethod
@@ -379,7 +379,7 @@ class ReadAnyFile:
         PPT_GROUP_SEPARATOR = r'fms_PPT_' + r'SEPARATOR_smf'
 
         def read_file_pptx(input_file_path: str) -> Tuple[int, str]:
-            global logger
+            global g_logger
             cmd_slides_list = r"unzip -l '" \
                               + input_file_path.replace(r"'", r"'\''") \
                               + r"' 'ppt/slides/slide*.xml' | awk '{print $4}' | grep 'ppt/slides/slide.*' --color=never | sort -V"
@@ -388,7 +388,7 @@ class ReadAnyFile:
             if status_code != 0:
                 return status_code, ''
             out_slides_list = output.split()
-            logger.debug(f'{out_slides_list=}')
+            g_logger.debug(f'{out_slides_list=}')
             output = ''
             for slide_path in out_slides_list:
                 status_code, out_slide = subprocess.getstatusoutput(
@@ -396,7 +396,7 @@ class ReadAnyFile:
                     + r" | grep -oP '(?<=\<a:t\>).*?(?=\</a:t\>)' ; echo '"
                     + PPT_GROUP_SEPARATOR + r"\n'"
                 )
-                logger.debug(f'{out_slide=}')
+                g_logger.debug(f'{out_slide=}')
                 if status_code != 0:
                     output += 'Unable to read slide: {}\n{}\n'.format(slide_path, PPT_GROUP_SEPARATOR)
                 else:
@@ -478,7 +478,7 @@ class ReadAnyFile:
         if status_code == 0:
             return output
 
-        global logger
+        global g_logger
         # ERROR occurred
         print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs='bold'), file_path),
               file=sys.stderr)
