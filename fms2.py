@@ -65,7 +65,7 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
         # REFER:   https://rich.readthedocs.io/en/latest/_modules/rich/style.html#Style.render
         bold = True if attrs is not None and attrs.lower() == 'bold' else None
         dim = True if attrs is not None and attrs.lower() == 'dim' else None
-        return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render("Hi")
+        return rich_Style(color=color, bgcolor=on_color, bold=bold, dim=dim).render(text)
 
     return text
 
