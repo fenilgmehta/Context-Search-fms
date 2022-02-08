@@ -84,7 +84,7 @@ class FmsSettings:
         self.c_context: int = 0
 
         self.p_paths: List[str] = list()
-        self.r_recursives: List[str] = list()
+        self.r_recursive_paths: List[str] = list()
         self.ei_extensions: List[str] = list()
         self.ei_extensions_add: List[str] = list()
         self.ee_extensions_exclude: List[str] = list()
@@ -118,7 +118,7 @@ class FmsSettings:
         self.c_context: int = args.context
 
         self.p_paths: List[str] = args.path
-        self.r_recursives: List[str] = args.recursive
+        self.r_recursive_paths: List[str] = args.recursive
         self.ei_extensions: List[str] = args.extensions
         self.ei_extensions_add: List[str] = args.extensions_add
         self.ee_extensions_exclude: List[str] = args.extensions_exclude
