@@ -80,10 +80,6 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
 class FmsSettings:
     GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
 
-    # .a is "current ar archive", is a "static library" created with the `ar` utility
-    DEFAULT_EXT_EXCLUDE_LIST: str = 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
-                                    'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'
-
     def __init__(self):
         self.c_context: int = 0
 
@@ -205,6 +201,10 @@ class FmsSettings:
 #   Look at `soffice` for office documents
 #   For excel files, look at https://csvkit.readthedocs.io/en/latest/tutorial/1_getting_started.html#in2csv-the-excel-killer
 class ReadAnyFile:
+    # .a is "current ar archive", is a "static library" created with the `ar` utility
+    DEFAULT_EXT_EXCLUDE_LIST: str = [''] + 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
+                                    'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'.split()
+
     @staticmethod
     def run_command_get_output(cmd: str, file_path: str) -> Tuple[int, str]:
         """The command "cmd" must have {} at the place where file path is to be used"""
