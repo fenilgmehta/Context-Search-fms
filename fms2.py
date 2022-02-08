@@ -425,26 +425,28 @@ class ReadAnyFile:
 
     @staticmethod
     def is_text_file(file_path: str) -> bool:
-        # REFER: https://stackoverflow.com/questions/2472221/how-to-check-if-a-file-contains-plain-text/2472243
-        # REFER: https://stackoverflow.com/questions/43580/how-to-find-the-mime-type-of-a-file-in-python
-        # Example:
-        #   file.md -> text/plain
-        #   file.py -> text/x-python
-        # TODO: Not sure whether to use "in" or "=="
+        # # Technique 1
+        # # REFER: https://stackoverflow.com/questions/2472221/how-to-check-if-a-file-contains-plain-text/2472243
+        # # REFER: https://stackoverflow.com/questions/43580/how-to-find-the-mime-type-of-a-file-in-python
+        # # Example:
+        # #   file.md -> text/plain
+        # #   file.py -> text/x-python
+        # # NOTE: Not sure whether to use `in` or `==`
         # return 'text' in magic.from_file(file_path, mime=True)
 
-        # # TODO: This technique does not work always. So, have to add all common text file extensions to the list
+        # # Technique 2
+        # # NOTE: This technique does not work always. So, have to add all common text file extensions to the list
         # #       Example: I did
         # #                $ pdftotext RivetPaper.pdf - > RivetPaper.txt
         # #                $ file RivetPaper.txt  # output ---> data
-        # #                python magic with "mime=True" gave "application/octet-stream" and with "mime=False" gave "data"
+        # #                python magic with `mime=True` gave "application/octet-stream" and with `mime=False` gave "data"
         # # print(magic.from_file(file_path, mime=True))
         # # print(magic.from_file(file_path, mime=False))
         # # os.system(f"file '{file_path}'")
         # return 'text' == magic.from_file(file_path, mime=True)[:4].lower()
 
+        # Technique 3 - This is used by XFCE "catfish" tool
         # REFER: https://github.com/xfce-mirror/catfish/blob/2ec27e912685ffb43ec45bdb5eb694d6973e4963/catfish/CatfishSearchEngine.py#L530
-        # This technique is used by XFCE `catfish` tool
         mime = str(mimetypes.guess_type(file_path)[0])
         text_list = ('ardour', 'audacity', 'desktop', 'document',
                      'fontforge', 'java', 'json', 'm4', 'mbox',
