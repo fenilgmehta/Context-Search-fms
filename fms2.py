@@ -511,8 +511,8 @@ class ReadAnyFile:
              ' documents and unsupported versions like Biff5 Excel)',
         500: 'Error - Error while processing document (Internal error)'
     }
-    DEFAULT_LIST_2: str = 'text pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
-                          'rtf dotx docm fodt ott'
+    DEFAULT_LIST_2: str = 'text txt md pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
+                          'rtf dotx docm fodt ott'.split()
 
     # REFER: https://stackoverflow.com/questions/39921087/a-openfile-r-a-readline-output-without-n
     # REFER: https://docs.python.org/2/library/io.html?highlight=io.open#io.open
@@ -540,7 +540,7 @@ class ReadAnyFile:
     def can_read_generic_2(file_path: str) -> bool:
         # NOTE: We use suffix[1:] because the first letter will be a dot ('.')
         file_extension: str = str(pathlib.Path(file_path).suffix).lower()[1:]
-        can_read: bool = file_extension in ReadAnyFile.DEFAULT_LIST_2.split()
+        can_read: bool = file_extension in ReadAnyFile.DEFAULT_LIST_2
         return can_read or ReadAnyFile.is_text_file(file_path)
 
     @staticmethod
