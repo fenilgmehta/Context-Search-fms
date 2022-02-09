@@ -88,7 +88,7 @@ class FmsSettings:
         self.ei_extensions: List[str] = list()
         self.ei_extensions_add: List[str] = list()
         self.ee_extensions_exclude: List[str] = list()
-        self.ee_extensions_exclude_subtract: List[str] = list()
+        self.ee_extensions_exclude_add: List[str] = list()
 
         self.g_group: List[str] = list()
         self.g2_group: List[str] = list()
@@ -103,8 +103,9 @@ class FmsSettings:
         self.color_str: str = ''
         self.color_bool: bool = False  # extra
 
+        self.i_input_record_separator: str = ''
         self.o_output_segment_separator: str = ''
-        self.cmd: str = ''
+        self.cmd: List[str] = list()
 
         self.cache: bool = False
         self.cache_path: str = ''  # extra
@@ -122,7 +123,7 @@ class FmsSettings:
         self.ei_extensions: List[str] = args.extensions
         self.ei_extensions_add: List[str] = args.extensions_add
         self.ee_extensions_exclude: List[str] = args.extensions_exclude
-        self.ee_extensions_exclude_subtract: List[str] = args.extensions_exclude_subtract
+        self.ee_extensions_exclude_add: List[str] = args.extensions_exclude_add
 
         self.g_group: List[str] = args.group
         self.g2_group: List[str] = args.group2
@@ -136,8 +137,9 @@ class FmsSettings:
         self.u_url_name: bool = args.url_name
         self.color_str: str = args.color
 
+        self.i_input_record_separator: str = args.input_record_separator
         self.o_output_segment_separator: str = args.output_segment_separator
-        self.cmd: str = args.cmd
+        self.cmd: List[str] = args.cmd
 
         self.cache: bool = args.cache
 
@@ -676,17 +678,37 @@ class FmsCache:
 
 def my_main():
     global g_IS_WINDOWS, g_fms_settings
+
+    # Create the parser
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
     # REFER: https://stackoverflow.com/questions/19124304/what-does-metavar-and-action-mean-in-argparse-in-python
-    # Create the parser
-
-    my_parser = argparse.ArgumentParser(prog='fms.py',
-                                        description='Smart multi-word search across multiples lines',
-                                        epilog='Enjoy the program :)',
-                                        prefix_chars='-',
-                                        fromfile_prefix_chars='@',
-                                        allow_abbrev=False,
-                                        add_help=True)
+    # REFER: https://stackoverflow.com/questions/3853722/how-to-insert-newlines-on-argparse-help-text
+    # noinspection PyTypeChecker
+    my_parser = argparse.ArgumentParser(
+        prog='fms.py',
+        description='Smart multi-word search across multiples lines',
+        epilog=f"Note:"
+               f"\n  • If `-p` and `-r` are not present, then STDIN is used"
+               f"\n  • Only one of `-x` and `-y` can be used at a time"
+               f"\n  • -y and -Y get priority over -x and -X"
+               f"\n  • -x, -X, -y, -Y work case in-sensitive"
+               f"\n  • Use -x '' to search extensionless files. Similarly -X, -y, -Y"
+               f"\n  • FMS_TEXT, FMS_EXT_YES and FMS_EXT_NO can be used with -x, -X, -y, -Y"
+               f"\n  • FMS_TEXT = Any text file, does not matter what the file extension is"
+               f"\n  • FMS_EXT_YES = {ReadAnyFile.DEFAULT_LIST_2}"
+               f"\n  • FMS_EXT_NO = {ReadAnyFile.DEFAULT_EXT_EXCLUDE_LIST}"
+               f"\n  • `-x FMS_TEXT` = Read any text file irrespective of the file extension. Similarly -X, -y, -Y"
+               f"\n  • Files which start with a dot (.) and do not contain any other "
+               f"dot (.) are considered extensionless. Example: '.bashrc' -> ''"
+               f"\n  • Files which start with a dot (.) and contain another dot (.) are considered to "
+               f"have the part after the last dot as the extension. Example: '.tmux.conf' -> 'conf'"
+               f"\n\nEnjoy the program :)",
+        prefix_chars='-',
+        fromfile_prefix_chars='@',
+        allow_abbrev=False,
+        add_help=True,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
     my_parser.version = '3.1'
 
     # DIFFERENCE between Positional and Optional arguments
@@ -697,7 +719,7 @@ def my_main():
 
     my_parser.add_argument('-C',
                            '--context',
-                           metavar="CONTEXT_LINE_RANGE",
+                           metavar='CONTEXT_LINE_RANGE',
                            action='store',
                            type=int,
                            default=7,
@@ -705,117 +727,119 @@ def my_main():
 
     my_parser.add_argument('-p',
                            '--path',
+                           metavar='PATH',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='The path to the file to search')
+                           help='The path to the files to search.')
+
     my_parser.add_argument('-r',
                            '--recursive',
+                           metavar='PATH',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='The list of paths to be used for recursive search')
-
-    # TODO: Add -m options for mime type (optional, not sure if such an option is required or not)
-    # TODO: Add comment that -x and -X are matched case insensitive with file extension
+                           help='The list of paths to be used for recursive search. Can be file or folder.')
     my_parser.add_argument('-x',
                            '--extensions',
+                           metavar='EXT',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions only to be searched for -r flag • (Example Usage: -x md '
-                                '-x pdf OR -x "md pdf") • (Note: for "file.tar.gz" only "-x gz" should be used)')
-    my_parser.add_argument('-X',
-                           '--extensions-add',
-                           action='append',
-                           nargs='+',
-                           type=str,
-                           help=f'DEFAULT_LIST ({ReadAnyFile.DEFAULT_LIST_2}) + '
-                                f'Files with these extensions to be searched for -r flag')
+                           help='Files with these extensions only to be searched by -r flag.'
+                                '\nNote:\n  • For "file.tar.gz" only `-x gz` should be used.'
+                                '\nExample Usage:\n  • -x md -x pdf\n  • -x md pdf')
     my_parser.add_argument('-y',
                            '--extensions-exclude',
+                           metavar='EXT',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions to be excluded from being searched for -r flag • (Example '
-                                'Usage: -y tex -y gz OR -y "tex gz") • (Note: for "file.tar.gz" only "-y gz" should be '
-                                'used) • (Note: -y gets priority over -x and -X) • (Default exclude list will be used '
-                                'if no parameters are passed, or "defaults" is passed as '
-                                'a parameter: {})'.format(FmsSettings.DEFAULT_EXT_EXCLUDE_LIST))
+                           help='Files with these extensions to be excluded from being searched by -r flag.'
+                                '\nNote:'
+                                '\n  • For "file.tar.gz" only `-y gz` should be used.'
+                                '\nExample Usage:\n  • -y tex -y gz\n  • -y tex gz')
+    my_parser.add_argument('-X',
+                           '--extensions-add',
+                           metavar='EXT',
+                           action='append',
+                           nargs='+',
+                           type=str,
+                           help=f'`FMS_EXT_YES or -x Parameters` + '
+                                f'`Files with these extensions` to be searched by -r flag.')
     my_parser.add_argument('-Y',
-                           '--extensions-exclude-subtract',
+                           '--extensions-exclude-add',
+                           metavar='EXT',
                            action='append',
                            nargs='+',
                            type=str,
-                           help=f'DEFAULT_LIST ({ReadAnyFile.DEFAULT_LIST_2}) - '
-                                f'Files with these extensions to be excluded from being searched for -r flag')
+                           help=f'`FMS_EXT_NO or -y Parameters` + '
+                                f'`Files with these extensions` to be excluded from being searched by -r flag.')
 
     my_parser.add_argument('-g',
                            '--group',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Any ONE white space separated group of words to search '
-                                '(this gets priority over -w parameter)')
+                           help='ONE space separated group of query-words to search. '
+                                '(This gets priority over --group2, -w and -W parameter)')
     my_parser.add_argument('--group2',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Any TWO white space separated group of words to search '
-                                '(this gets priority over -w parameter)')
+                           help='TWO space separated group of query-words to search. '
+                                '(This gets priority over -w and -W parameter)')
     my_parser.add_argument('-w',
                            '--word',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Word to search')
+                           help='Query-Words to search. (This gets priority over -W)')
     my_parser.add_argument('-W',
                            '--Word',
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Optional words to search')
+                           help='Optional words to search.')
 
     my_parser.add_argument('-i',
                            '--ignore-case',
                            action='store_true',
-                           help='Ignore case while searching')
+                           help='Ignore case while searching.')
     my_parser.add_argument('-n',
                            '--line-number',
                            action='store_true',
-                           # TODO: Update the below statement once the search logic is finalized
-                           help='Print line number (Note: printing line numbers may cause problem with -I '
-                                'parameter and REGEX which use "^")')
+                           help='Print line number.')
     my_parser.add_argument('-l',
                            '--files-with-matches',
                            action='store_true',
-                           help='Suppress normal output and just print the file names which satisfy the search query')
+                           help='Suppress normal output and just print the file names which satisfy the search query.')
     my_parser.add_argument('-q',
                            '--quiet',
                            action='store_true',
-                           help='Do not print anything for files in which no results found')
+                           help='Do not print anything for files in which no results are found.')
     my_parser.add_argument('-u',
                            '--url-name',
                            action='store_true',
-                           help='Print clickable file names on terminal')
+                           help='Print clickable file names on terminal.')
     my_parser.add_argument('--color',
                            metavar='WHEN',
                            action='store',
                            type=str,
                            default='auto',
-                           help="Can either be auto, always or never [default: auto]")
+                           help='Can either be auto, always or never [default: auto]')
 
-    # NOTE: This features is being removed because it has very very less use, increases
-    #       the complexity of code and reduces the efficiency of the program
-    # my_parser.add_argument('-I',
-    #                        '--input-record-separator',
-    #                        action='store',
-    #                        type=str,
-    #                        help='String to separate the input based on the record separator. '
-    #                             'This input will be evaluated as python string. So, to use '
-    #                             'newline followed by two hyphen, just write "\\n--". '
-    #                             'Note: input will be evaluated using python syntax. Hence, no need '
-    #                             'to make bash correctly interpret special characters such as "\\n" or "\\t"')
+    my_parser.add_argument('-I',
+                           '--input-record-separator',
+                           action='store',
+                           type=str,
+                           help='String to split the input into records.'
+                                '\nNote:'
+                                '\n  • This parameter should match the whole line for splitting to happen'
+                                '\n  • New line characters are not allowed'
+                                '\n  • This input will be evaluated as python string. So, to use '
+                                'tab followed by two hyphen, just write \'\\t--\'. Hence, no need '
+                                'to make bash correctly interpret special characters such as \'\\t\'')
     my_parser.add_argument('-O',
                            '--output-segment-separator',
                            action='store',
@@ -826,21 +850,27 @@ def my_main():
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Command to use to read the input file and to write the output to stdout. '
-                                'Insert {} in the command WITHOUT quotes to insert file name, e.g. "pdftotext {} -"')
+                           help="Command that can read files with specific extensions and write the output to STDOUT."
+                                "\nSyntax:"
+                                "\n  • --cmd 'extension:command {}'"
+                                "\n  • --cmd 'extension:command {} | any-processing-by-default-shell'"
+                                "\nNote:"
+                                "\n  • Insert {} in the command to insert 'file name with quotes'"
+                                "\nExample Usage:"
+                                "\n  • --cmd 'txt:cat {}' 'pdf:pdftotext {} -'")
+
     my_parser.add_argument('--cache',
                            action='store_true',
-                           help='Cache the text content of the files read for better speed in future file reads '
-                                '(text files will not be caches as there is no performance gain in that case)')
+                           help='Cache the text content of the files read for better speed in future file reads. '
+                                '\nNote: Text files will not be cached as there is no performance gain in those cases.')
 
     my_parser.add_argument('--verbose',
                            action='store_true',
                            help='Print expression highlighted and number of segments which satisfied the '
-                                'search conditions (Bug: content printed because of this flag will be '
-                                'colored for --color=auto even if the output is not directed to a TTY)')
+                                'search conditions.')
     my_parser.add_argument('--debug',
                            action='store_true',
-                           help='Print debug information')
+                           help='Print debug information.')
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
