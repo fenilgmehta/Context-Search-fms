@@ -17,7 +17,6 @@ import platform
 import re
 import subprocess
 import sys
-import tempfile
 import traceback
 import zipfile
 from datetime import datetime
@@ -65,7 +64,7 @@ def my_colored(text: str, color: str = None, on_color: str = None, attrs: str = 
     :param attrs: "bold" or "dim"
     :return: string which can be printed using "print" and decoration will be applied automatically
     """
-    global g_fms_settings, g_logger
+    global g_fms_settings
     if not g_fms_settings.color_bool:
         return text
     # Technique 3 - rich lib
@@ -114,8 +113,6 @@ class FmsSettings:
         self.debug: bool = False
 
     def initialize_from_argparse_namespace(self, args: argparse.Namespace):
-        global g_IS_WINDOWS
-
         self.c_context: int = args.context
 
         self.p_paths: List[str] = args.path
@@ -146,32 +143,47 @@ class FmsSettings:
         self.verbose: bool = args.verbose
         self.debug: bool = args.debug
 
-        g_logger.debug(f'Debugging is {"ON" if self.debug else "OFF"}')
-        g_logger.debug(type(args))
-        g_logger.debug(args)
-
     def initialize_data(self) -> None:
         """Call this after setting all the command line parameters as variables of this class"""
         global g_logger, g_IS_WINDOWS
-        if self.debug:
-            g_logger.setLevel(logging.DEBUG)
-        else:
-            g_logger.setLevel(logging.INFO)
-        if g_IS_WINDOWS:
-            # NOTE: This can be used for Linux as well
-            # REFER: https://www.tutorialspoint.com/generate-temporary-files-and-directories-using-python
-            # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
-            logger_file_handler = logging.FileHandler(
-                (pathlib.Path(tempfile.gettempdir()) / 'fms_stderr.log').resolve())
-        else:
-            logger_file_handler = logging.FileHandler('/dev/stderr')
-        logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
-        # logger_formatter    = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
-        logger_file_handler.setFormatter(logger_formatter)
-        g_logger.addHandler(logger_file_handler)
 
-        # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
-        g_logger.handlers[0].flush()
+        # REFER: https://zetcode.com/python/logging/
+        # REFER: https://rich.readthedocs.io/en/latest/logging.html
+        g_logger.setLevel(logging.DEBUG if self.debug else logging.WARNING)
+
+        # NOTE: By default, Python logging write to "stderr" by default
+        # REFER: https://stackoverflow.com/questions/56496458/does-python-logging-write-to-stdout-or-stderr-by-default
+        # ---
+        # temp_log_file = (pathlib.Path(tempfile.gettempdir()) / 'fms_stderr.log').resolve() if g_IS_WINDOWS \
+        #     else '/dev/stderr'
+        # ---
+        # if g_IS_WINDOWS:
+        #     # NOTE: This can be used for Linux as well
+        #     # REFER: https://www.tutorialspoint.com/generate-temporary-files-and-directories-using-python
+        #     # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
+        #     logger_file_handler = logging.FileHandler(
+        #         (pathlib.Path(tempfile.gettempdir()) / 'fms_stderr.log').resolve()
+        #     )
+        # else:
+        #     logger_file_handler = logging.FileHandler('/dev/stderr')
+
+        # g_logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(funcName)s :: %(name)s :: %(message)s')
+        # g_logger_formatter = logging.Formatter('%(levelname)s :: [%(lineno)s] %(name)s :: %(message)s')
+
+        # noinspection PyArgumentList
+        logging.basicConfig(
+            level=(logging.DEBUG if self.debug else logging.WARNING),
+            format='%(funcName)s :: %(message)s',
+            datefmt="[%X]",
+            handlers=[rich_RichHandler()]
+        )
+        g_logger = logging.getLogger("fms")
+        g_logger.debug("Hello World!")
+
+        if len(g_logger.handlers) >= 1:
+            # REFER: https://stackoverflow.com/questions/13176173/python-how-to-flush-the-log-django/13753911
+            g_logger.warning(f'{len(g_logger.handlers)=}')
+            g_logger.handlers[0].flush()
 
         # ---
 
@@ -482,8 +494,13 @@ class ReadAnyFile:
         if status_code == 0:
             return output
 
-        global g_logger
         # ERROR occurred
+        global g_logger
+        g_logger.error(f"Unable to read file '{file_path=}'")
+        g_logger.error(f'{status_code=}')
+        g_logger.error(f'{output=}')
+        g_logger.info('Exiting...')
+        g_logger.info('TODO: Remove below print statements once the output of above statements is seen')
         print("{}: Unable to read file \'{}\'".format(my_colored('Error', 'red', attrs='bold'), file_path),
               file=sys.stderr)
         print("{}: status_code = {}".format(my_colored('Error', 'red', attrs='bold'), str(status_code)),
@@ -677,7 +694,7 @@ class FmsCache:
 
 
 def my_main():
-    global g_IS_WINDOWS, g_fms_settings
+    global g_fms_settings, g_logger
 
     # Create the parser
     # REFER: https://realpython.com/command-line-interfaces-python-argparse/
@@ -874,15 +891,16 @@ def my_main():
 
     # Execute the parse_args() method
     args: argparse.Namespace = my_parser.parse_args()
-    print(args)
     g_fms_settings.initialize_from_argparse_namespace(args)
     g_fms_settings.initialize_data()
+    g_logger.debug(f'{type(args)}')
+    g_logger.debug(f'{args=}')
 
 
 def exit_handler():
     # Try Except is used to handle the case where "colorama" is not installed
     global g_logger
-    g_logger.info('exit_handler called')
+    g_logger.debug('`exit_handler()` function called')
     try:
         pass
     except Exception as e:
@@ -891,7 +909,7 @@ def exit_handler():
 
 atexit.register(exit_handler)
 # noinspection PyRedeclaration
-g_logger = logging.getLogger(__name__)
+g_logger = logging.getLogger("fms")
 # noinspection PyRedeclaration
 g_fms_settings = FmsSettings()
 
