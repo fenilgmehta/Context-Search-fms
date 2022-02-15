@@ -20,7 +20,7 @@ import sys
 import traceback
 import zipfile
 from datetime import datetime
-from typing import Union, Tuple, List, Dict
+from typing import Union, Tuple, List, Dict, Set
 
 g_IS_WINDOWS: bool = (platform.system() == 'Windows')
 g_logger: Union[logging.Logger, None] = None
@@ -84,9 +84,9 @@ class FmsSettings:
 
         self.p_paths: List[str] = list()
         self.r_recursive_paths: List[str] = list()
-        self.ei_extensions: List[str] = list()
+        self.ei_extensions: Union[List[str], Set[str]] = list()
         self.ei_extensions_add: List[str] = list()
-        self.ee_extensions_exclude: List[str] = list()
+        self.ee_extensions_exclude: Union[List[str], Set[str]] = list()
         self.ee_extensions_exclude_add: List[str] = list()
 
         self.g_group: List[str] = list()
@@ -112,20 +112,34 @@ class FmsSettings:
         self.verbose: bool = False
         self.debug: bool = False
 
+    @staticmethod
+    def __flatten_list(list_of_list: Union[None, List]) -> List:
+        """
+        Convert List[List] to List.
+        REFER: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        """
+        if list_of_list is None:
+            return list()
+        return [item for sublist in list_of_list for item in sublist]
+
     def initialize_from_argparse_namespace(self, args: argparse.Namespace):
+        global g_logger
         self.c_context: int = args.context
 
-        self.p_paths: List[str] = args.path
-        self.r_recursive_paths: List[str] = args.recursive
-        self.ei_extensions: List[str] = args.extensions
-        self.ei_extensions_add: List[str] = args.extensions_add
-        self.ee_extensions_exclude: List[str] = args.extensions_exclude
-        self.ee_extensions_exclude_add: List[str] = args.extensions_exclude_add
+        self.p_paths: List[str] = FmsSettings.__flatten_list(args.path)
+        self.r_recursive_paths: List[str] = FmsSettings.__flatten_list(args.recursive)
+        self.ei_extensions: Union[List[str], Set[str]] = FmsSettings.__flatten_list(args.extensions)
+        self.ei_extensions_add: List[str] = FmsSettings.__flatten_list(args.extensions_add)
+        self.ee_extensions_exclude: Union[List[str], Set[str]] = FmsSettings.__flatten_list(args.extensions_exclude)
+        self.ee_extensions_exclude_add: List[str] = FmsSettings.__flatten_list(args.extensions_exclude_add)
+        if not any((args.extensions, args.extensions_add, args.extensions_exclude, args.extensions_exclude_add)):
+            g_logger.debug('All of -x, -X, -y and -Y are not used')
+            self.ei_extensions = ['FMS_EXT_YES']
 
-        self.g_group: List[str] = args.group
-        self.g2_group: List[str] = args.group2
-        self.w_words: List[str] = args.word
-        self.w_words_optional: List[str] = args.Word
+        self.g_group: List[str] = FmsSettings.__flatten_list(args.group)
+        self.g2_group: List[str] = FmsSettings.__flatten_list(args.group2)
+        self.w_words: List[str] = FmsSettings.__flatten_list(args.word)
+        self.w_words_optional: List[str] = FmsSettings.__flatten_list(args.Word)
 
         self.i_ignore_case: bool = args.ignore_case
         self.n_line_number: bool = args.line_number
@@ -136,7 +150,7 @@ class FmsSettings:
 
         self.i_input_record_separator: str = args.input_record_separator
         self.o_output_segment_separator: str = args.output_segment_separator
-        self.cmd: List[str] = args.cmd
+        self.cmd: List[str] = FmsSettings.__flatten_list(args.cmd)
 
         self.cache: bool = args.cache
 
