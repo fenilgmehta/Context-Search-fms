@@ -295,6 +295,25 @@ class FmsSettings:
             self.p_r_final_file_paths.append(p)
 
         # ---
+
+        if str(self.color_str).lower() not in ('auto', 'always', 'never'):
+            g_logger.warning(f'Invalid parameter --color={self.color_str}')
+            g_logger.warning(f'         Using --color=auto')
+            self.color_str = 'auto'
+
+        if str(self.color_str).lower() == 'auto':
+            # REFER: https://github.com/alttch/neotermcolor/blob/master/neotermcolor/__init__.py
+            #        Search "tty_aware" in that file
+            self.color_bool = (os.getenv('ANSI_COLORS_DISABLED') is None) and \
+                              (sys.stdout.isatty() and sys.stderr.isatty())
+        else:
+            if str(self.color_str).lower() == 'always':
+                self.color_bool = True
+            else:  # 'never'
+                self.color_bool = False
+
+        # ---
+
         # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
         # REFER: https://stackoverflow.com/questions/22947427/getting-home-directory-with-pathlib
         # REFER: https://www.freecodecamp.org/news/appdata-where-to-find-the-appdata-folder-in-windows-10/
