@@ -109,7 +109,7 @@ class FmsSettings:
         self.cmd: List[str] = list()
 
         self.cache: bool = False
-        self.cache_path: str = ''  # extra
+        self.cache_path: pathlib.Path = pathlib.Path('.')  # extra
 
         self.verbose: bool = False
         self.debug: bool = False
@@ -319,16 +319,17 @@ class FmsSettings:
         # REFER: https://www.freecodecamp.org/news/appdata-where-to-find-the-appdata-folder-in-windows-10/
         #        The Local folder is used to store data that is specific to a single windows system,
         #        which means data is not synced between multiple PCs.
-        self.cache_path: pathlib.Path = pathlib.Path(pathlib.Path.home()) / '.cache' / 'fms'
         if g_IS_WINDOWS:
             self.cache_path = pathlib.Path(pathlib.Path.home()) / 'AppData' / 'Local' / 'fms'
-        self.cache_path: str = self.cache_path.resolve()
+        else:
+            self.cache_path = pathlib.Path(pathlib.Path.home()) / '.cache' / 'fms'
+
         # REFER: https://www.tutorialspoint.com/How-can-I-create-a-directory-if-it-does-not-exist-using-Python
         try:
             os.makedirs(self.cache_path)
         except OSError as e:
             if e.errno != errno.EEXIST:
-                g_logger.error(f"{type(e)=}, {e=}")
+                g_logger.error(f'{type(e)=}, {e=}')
                 raise  # This will re-raise the last exception that was active
 
         # TODO
