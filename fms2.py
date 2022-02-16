@@ -82,12 +82,14 @@ class FmsSettings:
     def __init__(self):
         self.c_context: int = 0
 
+        self.p_r_final_file_paths: List[str] = list()  # Final list of files to search in. Can ignore below 7 variables.
         self.p_paths: List[str] = list()
         self.r_recursive_paths: List[str] = list()
         self.ei_extensions: Union[List[str], Set[str]] = list()
         self.ei_extensions_add: List[str] = list()
         self.ee_extensions_exclude: Union[List[str], Set[str]] = list()
         self.ee_extensions_exclude_add: List[str] = list()
+        self.e_to_read_text_files: bool = False  # Whether to include text files for search or not
 
         self.g_group: List[str] = list()
         self.g2_group: List[str] = list()
@@ -201,6 +203,98 @@ class FmsSettings:
 
         # ---
 
+        if self.c_context < 0:
+            g_logger.warning(f'`{self.c_context=}` < 0')
+            g_logger.warning(f'Using default value `-C 7`')
+            self.c_context = 7
+
+        # Generate file extension inclusion and exclusion list
+        if self.ei_extensions != [] and self.ee_extensions_exclude != []:
+            g_logger.error('-x and -y are both used at the same time. Only one can be used at a time.')
+            sys.exit(1)
+        # if 'FMS_TEXT' in self.ei_extensions:
+        #     self.ei_extensions.remove('FMS_TEXT')
+        #     self.e_to_read_text_files = True
+        # if 'FMS_TEXT' in self.ei_extensions_add:
+        #     self.ei_extensions_add.remove('FMS_TEXT')
+        #     self.e_to_read_text_files = True
+        # self.ei_extensions.extend(self.ei_extensions_add)
+        self.ei_extensions = set(self.ei_extensions + self.ei_extensions_add)
+        if 'FMS_EXT_YES' in self.ei_extensions:
+            self.ei_extensions.remove('FMS_EXT_YES')
+            self.ei_extensions.union(ReadAnyFile.DEFAULT_LIST_2)
+        if 'FMS_EXT_NO' in self.ei_extensions:
+            g_logger.warning("Generally 'FMS_EXT_NO' is not used with `-x` and `-X` flag")
+            self.ei_extensions.remove('FMS_EXT_NO')
+            self.ei_extensions.union(ReadAnyFile.DEFAULT_EXT_EXCLUDE_LIST)
+        if 'FMS_TEXT' in self.ei_extensions:
+            self.ei_extensions.remove('FMS_TEXT')
+            self.e_to_read_text_files = True
+        g_logger.debug(f'{self.ei_extensions=}')
+
+        self.ee_extensions_exclude = set(self.ee_extensions_exclude + self.ee_extensions_exclude_add)
+        if 'FMS_EXT_YES' in self.ee_extensions_exclude:
+            g_logger.warning("Generally 'FMS_EXT_YES' is not used with `-y` and `-Y` flag")
+            self.ee_extensions_exclude.remove('FMS_EXT_YES')
+            self.ee_extensions_exclude.union(ReadAnyFile.DEFAULT_LIST_2)
+        if 'FMS_EXT_NO' in self.ee_extensions_exclude:
+            self.ee_extensions_exclude.remove('FMS_EXT_NO')
+            self.ee_extensions_exclude.union(ReadAnyFile.DEFAULT_EXT_EXCLUDE_LIST)
+        if 'FMS_TEXT' in self.ee_extensions_exclude:
+            self.ee_extensions_exclude.remove('FMS_TEXT')
+            self.e_to_read_text_files = False
+        g_logger.debug(f'{self.ee_extensions_exclude=}')
+
+        paths_list = list()
+        paths_abs_set = set()
+
+        for file in self.p_paths:
+            if not os.path.exists(file):
+                g_logger.warning(f"Cannot access '{file}': No such file or directory")
+                continue
+            file_abs = os.path.abspath(file)
+            if file_abs in paths_abs_set:
+                g_logger.info(f"Skipping duplicate file from -p parameter: '{file}'")
+                continue
+            if not os.path.isfile(file):
+                g_logger.warning(f'Use -r for recursively searching inside a directory')
+                continue
+            paths_list.append(file)
+            paths_abs_set.add(file_abs)
+
+        for file_or_folder in self.r_recursive_paths:
+            if not os.path.exists(file_or_folder):
+                g_logger.warning(f"Cannot access '{file_or_folder}': No such file or directory")
+                continue
+            file_or_folder_abs = os.path.abspath(file_or_folder)
+            if file_or_folder_abs in paths_abs_set:
+                g_logger.info(f"Skipping duplicate path for -r parameter: '{file_or_folder_abs}'")
+                continue
+            if os.path.isfile(file_or_folder):
+                if self.__file_to_search(file_or_folder):
+                    paths_list.append(file_or_folder)
+                paths_abs_set.add(file_or_folder_abs)
+                continue
+            # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
+            for r, d, f in os.walk(file_or_folder):
+                r_abs = os.path.abspath(r)
+                if r_abs in paths_abs_set:
+                    continue
+                paths_abs_set.add(r_abs)
+                paths_list.extend([
+                    os.path.join(r, file) for file in sorted(f) if self.__file_to_search(os.path.join(r, file))
+                ])
+        g_logger.debug(f'{paths_list=}')
+
+        paths_abs_set = set()
+        for p in paths_list:
+            p_abs = os.path.abspath(p)
+            if p_abs in paths_abs_set:
+                continue
+            paths_abs_set.add(p_abs)
+            self.p_r_final_file_paths.append(p)
+
+        # ---
         # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
         # REFER: https://stackoverflow.com/questions/22947427/getting-home-directory-with-pathlib
         # REFER: https://www.freecodecamp.org/news/appdata-where-to-find-the-appdata-folder-in-windows-10/
@@ -221,6 +315,16 @@ class FmsSettings:
         # TODO
         pass
 
+    def __file_to_search(self, path: str) -> bool:
+        file_extension = os.path.splitext(path)[1][1:]  # [1:] is used to remove leading '.'
+        if file_extension in self.ee_extensions_exclude:
+            return False
+        if file_extension in self.ei_extensions:
+            return True
+        if self.e_to_read_text_files:
+            return ReadAnyFile.is_text_file(path)
+        return False
+
 
 # NOTE: Tika is all in one solution :)
 # TODO: Read more at https://www.lesbonscomptes.com/recoll/pages/features.html#doctypes
@@ -231,7 +335,7 @@ class FmsSettings:
 class ReadAnyFile:
     # .a is "current ar archive", is a "static library" created with the `ar` utility
     DEFAULT_EXT_EXCLUDE_LIST: str = [''] + 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
-                                    'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'.split()
+                                           'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'.split()
 
     @staticmethod
     def run_command_get_output(cmd: str, file_path: str) -> Tuple[int, str]:
@@ -546,7 +650,7 @@ class ReadAnyFile:
              ' documents and unsupported versions like Biff5 Excel)',
         500: 'Error - Error while processing document (Internal error)'
     }
-    DEFAULT_LIST_2: str = 'text txt md pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
+    DEFAULT_LIST_2: str = 'FMS_TEXT txt md pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
                           'rtf dotx docm fodt ott'.split()
 
     # REFER: https://stackoverflow.com/questions/39921087/a-openfile-r-a-readline-output-without-n
@@ -720,6 +824,7 @@ def my_main():
         description='Smart multi-word search across multiples lines',
         epilog=f"Note:"
                f"\n  • If `-p` and `-r` are not present, then STDIN is used"
+               f"\n  • If none of -x, -X, -y, -Y are used, then default is `-x 'FMS_EXT_YES'`"
                f"\n  • Only one of `-x` and `-y` can be used at a time"
                f"\n  • -y and -Y get priority over -x and -X"
                f"\n  • -x, -X, -y, -Y work case in-sensitive"
