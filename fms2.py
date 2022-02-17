@@ -231,6 +231,11 @@ class FmsSettings:
             self.to_search_text_files = False
         g_logger.debug(f'{self.ee_extensions_exclude=}')
 
+        if len(self.ei_extensions.intersection(self.ee_extensions_exclude)) > 0:
+            g_logger.warning(f'Some file extensions are present in both include and exclude list: '
+                             f'{self.ei_extensions.intersection(self.ee_extensions_exclude)}')
+            g_logger.warning(f'-y and -Y get priority over -x and -X')
+
         paths_list = list()
         paths_abs_set = set()
 
