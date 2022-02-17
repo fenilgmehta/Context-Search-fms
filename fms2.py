@@ -326,16 +326,6 @@ class FmsSettings:
         # TODO
         pass
 
-    @staticmethod
-    def __flatten_list(list_of_list: Union[None, List]) -> List:
-        """
-        Convert List[List] to List.
-        REFER: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
-        """
-        if list_of_list is None:
-            return list()
-        return [item for sublist in list_of_list for item in sublist]
-
     def __file_to_search(self, path: str) -> bool:
         file_extension = os.path.splitext(path)[1][1:]  # [1:] is used to remove leading '.'
         if file_extension in self.ee_extensions_exclude:
@@ -345,6 +335,16 @@ class FmsSettings:
         if self.to_search_text_files:
             return ReadAnyFile.is_text_file(path)
         return False
+
+    @staticmethod
+    def __flatten_list(list_of_list: Union[None, List]) -> List:
+        """
+        Convert List[List] to List.
+        REFER: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        """
+        if list_of_list is None:
+            return list()
+        return [item for sublist in list_of_list for item in sublist]
 
 
 # NOTE: Tika is all in one solution :)
