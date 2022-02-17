@@ -114,16 +114,6 @@ class FmsSettings:
         self.verbose: bool = False
         self.debug: bool = False
 
-    @staticmethod
-    def __flatten_list(list_of_list: Union[None, List]) -> List:
-        """
-        Convert List[List] to List.
-        REFER: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
-        """
-        if list_of_list is None:
-            return list()
-        return [item for sublist in list_of_list for item in sublist]
-
     def initialize_from_argparse_namespace(self, args: argparse.Namespace):
         global g_logger
         self.c_context: int = args.context
@@ -330,6 +320,16 @@ class FmsSettings:
 
         # TODO
         pass
+
+    @staticmethod
+    def __flatten_list(list_of_list: Union[None, List]) -> List:
+        """
+        Convert List[List] to List.
+        REFER: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        """
+        if list_of_list is None:
+            return list()
+        return [item for sublist in list_of_list for item in sublist]
 
     def __file_to_search(self, path: str) -> bool:
         file_extension = os.path.splitext(path)[1][1:]  # [1:] is used to remove leading '.'
