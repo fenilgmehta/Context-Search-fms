@@ -80,16 +80,16 @@ class FmsSettings:
     GROUP_SEPARATOR: str = 'fms_1!2@3#4$5%' + '6^7&8*9(0)_smf'
 
     def __init__(self):
-        self.c_context: int = 0
+        self.c_context: int = 7
 
-        self.p_r_final_file_paths: List[str] = list()  # Final list of files to search in. Can ignore below 7 variables.
+        self.p_r_final_file_paths: List[str] = list()  # Extra variable. Final list of files to search in.
+        self.to_search_text_files: bool = False  # Extra variable. Whether to include text files for search or not.
         self.p_paths: List[str] = list()
         self.r_recursive_paths: List[str] = list()
         self.ei_extensions: Union[List[str], Set[str]] = list()
         self.ei_extensions_add: List[str] = list()
         self.ee_extensions_exclude: Union[List[str], Set[str]] = list()
         self.ee_extensions_exclude_add: List[str] = list()
-        self.e_to_read_text_files: bool = False  # Whether to include text files for search or not
 
         self.g_group: List[str] = list()
         self.g2_group: List[str] = list()
@@ -101,15 +101,15 @@ class FmsSettings:
         self.l_files_with_matches: bool = False
         self.q_quiet: bool = False
         self.u_url_name: bool = False
-        self.color_str: str = ''
-        self.color_bool: bool = False  # extra
+        self.color_str: str = 'auto'
+        self.color_bool: bool = False  # Extra variable
 
-        self.i_input_record_separator: str = ''
-        self.o_output_segment_separator: str = ''
+        self.i_input_record_separator: Union[str, None] = None
+        self.o_output_segment_separator: str = '--'
         self.cmd: List[str] = list()
 
         self.cache: bool = False
-        self.cache_path: pathlib.Path = pathlib.Path('.')  # extra
+        self.cache_path: pathlib.Path = pathlib.Path('.')  # Extra variable
 
         self.verbose: bool = False
         self.debug: bool = False
@@ -206,20 +206,15 @@ class FmsSettings:
             self.c_context = 7
 
         # Generate file extension inclusion and exclusion list
-        if not any((self.ei_extensions, self.ei_extensions_add, self.ee_extensions_exclude, self.ee_extensions_exclude_add)):
-            g_logger.debug('All of -x, -X, -y and -Y are not used')
+        if not any((self.ei_extensions, self.ei_extensions_add,
+                    self.ee_extensions_exclude, self.ee_extensions_exclude_add)):
+            g_logger.debug('All of -x, -X, -y and -Y are not used. Using default value `-x FMS_EXT_YES`')
             self.ei_extensions = ['FMS_EXT_YES']
 
-        if self.ei_extensions != [] and self.ee_extensions_exclude != []:
+        if len(self.ei_extensions) > 0 and len(self.ee_extensions_exclude) > 0:
             g_logger.error('-x and -y are both used at the same time. Only one can be used at a time.')
             sys.exit(1)
-        # if 'FMS_TEXT' in self.ei_extensions:
-        #     self.ei_extensions.remove('FMS_TEXT')
-        #     self.e_to_read_text_files = True
-        # if 'FMS_TEXT' in self.ei_extensions_add:
-        #     self.ei_extensions_add.remove('FMS_TEXT')
-        #     self.e_to_read_text_files = True
-        # self.ei_extensions.extend(self.ei_extensions_add)
+
         self.ei_extensions = set(self.ei_extensions + self.ei_extensions_add)
         if 'FMS_EXT_YES' in self.ei_extensions:
             self.ei_extensions.remove('FMS_EXT_YES')
@@ -230,7 +225,7 @@ class FmsSettings:
             self.ei_extensions.union(ReadAnyFile.DEFAULT_EXT_EXCLUDE_LIST)
         if 'FMS_TEXT' in self.ei_extensions:
             self.ei_extensions.remove('FMS_TEXT')
-            self.e_to_read_text_files = True
+            self.to_search_text_files = True
         g_logger.debug(f'{self.ei_extensions=}')
 
         self.ee_extensions_exclude = set(self.ee_extensions_exclude + self.ee_extensions_exclude_add)
@@ -243,7 +238,7 @@ class FmsSettings:
             self.ee_extensions_exclude.union(ReadAnyFile.DEFAULT_EXT_EXCLUDE_LIST)
         if 'FMS_TEXT' in self.ee_extensions_exclude:
             self.ee_extensions_exclude.remove('FMS_TEXT')
-            self.e_to_read_text_files = False
+            self.to_search_text_files = False
         g_logger.debug(f'{self.ee_extensions_exclude=}')
 
         paths_list = list()
@@ -342,7 +337,7 @@ class FmsSettings:
             return False
         if file_extension in self.ei_extensions:
             return True
-        if self.e_to_read_text_files:
+        if self.to_search_text_files:
             return ReadAnyFile.is_text_file(path)
         return False
 
