@@ -134,9 +134,6 @@ class FmsSettings:
         self.ei_extensions_add: List[str] = FmsSettings.__flatten_list(args.extensions_add)
         self.ee_extensions_exclude: Union[List[str], Set[str]] = FmsSettings.__flatten_list(args.extensions_exclude)
         self.ee_extensions_exclude_add: List[str] = FmsSettings.__flatten_list(args.extensions_exclude_add)
-        if not any((args.extensions, args.extensions_add, args.extensions_exclude, args.extensions_exclude_add)):
-            g_logger.debug('All of -x, -X, -y and -Y are not used')
-            self.ei_extensions = ['FMS_EXT_YES']
 
         self.g_group: List[str] = FmsSettings.__flatten_list(args.group)
         self.g2_group: List[str] = FmsSettings.__flatten_list(args.group2)
@@ -209,6 +206,10 @@ class FmsSettings:
             self.c_context = 7
 
         # Generate file extension inclusion and exclusion list
+        if not any((self.ei_extensions, self.ei_extensions_add, self.ee_extensions_exclude, self.ee_extensions_exclude_add)):
+            g_logger.debug('All of -x, -X, -y and -Y are not used')
+            self.ei_extensions = ['FMS_EXT_YES']
+
         if self.ei_extensions != [] and self.ee_extensions_exclude != []:
             g_logger.error('-x and -y are both used at the same time. Only one can be used at a time.')
             sys.exit(1)
