@@ -874,13 +874,24 @@ def my_main():
     # Add the arguments
     my_parser.add_argument('--version', action='version')
 
+    def parser_check_context_int_range(c: str) -> int:
+        # REFER: https://stackoverflow.com/questions/1265665/how-can-i-check-if-a-string-represents-an-int-without-using-try-except
+        if not c.isdigit():
+            raise argparse.ArgumentTypeError(f"invalid int value: '{c}'")
+        val = int(c)
+        if val < 0:
+            raise argparse.ArgumentTypeError('minimum `CONTEXT_LINE_RANGE` is 0')
+        return val
+
     my_parser.add_argument('-C',
                            '--context',
                            metavar='CONTEXT_LINE_RANGE',
                            action='store',
-                           type=int,
+                           # REFER: https://stackoverflow.com/questions/18700634/python-argparse-integer-condition-12
+                           type=parser_check_context_int_range,
                            default=7,
-                           help='Number of consecutive lines which should satisfy the query-words [default: 7]')
+                           help='Number of consecutive lines which should satisfy the query-words [default: 7]'
+                                '\nRequirement: CONTEXT_LINE_RANGE >= 0')
 
     my_parser.add_argument('-p',
                            '--path',
