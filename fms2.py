@@ -355,8 +355,8 @@ class FmsSettings:
 #   For excel files, look at https://csvkit.readthedocs.io/en/latest/tutorial/1_getting_started.html#in2csv-the-excel-killer
 class ReadAnyFile:
     # .a is "current ar archive", is a "static library" created with the `ar` utility
-    DEFAULT_EXT_EXCLUDE_LIST: str = [''] + 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
-                                           'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'.split()
+    DEFAULT_EXT_EXCLUDE_LIST: List[str] = [''] + 'out exe pkl ttf otf eot 7z rar zip tar gz a jar class db ' \
+                                                 'mid mp3 mp4 webm mkv ctb ctb~ ctb~~ ctb~~~'.split()
 
     @staticmethod
     def run_command_get_output(cmd: str, file_path: str) -> Tuple[int, str]:
@@ -671,8 +671,8 @@ class ReadAnyFile:
              ' documents and unsupported versions like Biff5 Excel)',
         500: 'Error - Error while processing document (Internal error)'
     }
-    DEFAULT_LIST_2: str = 'FMS_TEXT txt md pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
-                          'rtf dotx docm fodt ott'.split()
+    DEFAULT_LIST_2: List[str] = 'FMS_TEXT txt md pdf doc docx xls xlsx ppt pptx odt ods odp epub jpg png ' \
+                                'rtf dotx docm fodt ott'.split()
 
     # REFER: https://stackoverflow.com/questions/39921087/a-openfile-r-a-readline-output-without-n
     # REFER: https://docs.python.org/2/library/io.html?highlight=io.open#io.open
