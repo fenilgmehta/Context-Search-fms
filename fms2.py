@@ -91,7 +91,7 @@ class FmsSettings:
         self.ee_extensions_exclude: Union[List[str], Set[str]] = list()
         self.ee_extensions_exclude_add: List[str] = list()
 
-        self.g_group: List[str] = list()
+        self.g_group: List[str] = list()  # This stores final list of Query-Words
         self.g2_group: List[str] = list()
         self.w_words: List[str] = list()
         self.w_words_optional: List[str] = list()
@@ -276,6 +276,18 @@ class FmsSettings:
                 continue
             paths_abs_set.add(p_abs)
             self.p_r_final_file_paths.append(p)
+
+        # ---
+
+        # Query-Word processing
+        query_words: List[str] = list()
+        for g in self.g_group:
+            query_words.extend(g.split(' '))
+        for g2 in self.g2_group:
+            query_words.extend(g2.split(' '))
+        query_words.extend(self.w_words)
+        query_words.extend(self.w_words_optional)
+        self.g_group = query_words
 
         # ---
 
