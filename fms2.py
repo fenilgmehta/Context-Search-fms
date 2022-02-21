@@ -104,7 +104,7 @@ class FmsSettings:
         self.color_str: str = 'auto'
         self.color_bool: bool = False  # Extra variable. It obliterates the need of `self.color_str`.
 
-        self.i_input_record_separator: Union[str, None] = None
+        self.i_input_record_separator: Union[str, None] = None  # Important to check if this is `None` or not
         self.o_output_segment_separator: str = '--'
         self.cmd: List[str] = list()
         self.cmd_dict: Dict[str, str] = dict()  # Extra variable. It obliterates the need of `self.cmd`.
@@ -225,7 +225,7 @@ class FmsSettings:
         g_logger.debug(f'{self.ee_extensions_exclude=}')
 
         if len(self.ei_extensions.intersection(self.ee_extensions_exclude)) > 0:
-            g_logger.warning(f'Some file extensions are present in both include and exclude list: '
+            g_logger.warning(f'Some file extensions are present in both include (-x, -X) and exclude (-y, -Y) list: '
                              f'{self.ei_extensions.intersection(self.ee_extensions_exclude)}')
             g_logger.warning(f'-y and -Y get priority over -x and -X')
 
@@ -337,8 +337,6 @@ class FmsSettings:
             if e.errno != errno.EEXIST:
                 g_logger.error(f'{type(e)=}, {e=}')
                 raise  # This will re-raise the last exception that was active
-
-        # TODO
         pass
 
     def __file_to_search(self, path: str) -> bool:
@@ -728,6 +726,11 @@ class ReadAnyFile:
         if ReadAnyFile.is_text_file(file_path):
             return ReadAnyFile.TextFileReader(file_path)
 
+        # FIXME, TODO
+        # Run tika server if not already running using the below command
+        #     java -cp /path/to/tika-server.jar org.apache.tika.server.TikaServerCli --port 9998 --host localhost
+        # If not done manually, the library will download the jar from
+        # apache website and then execution the above command
         res = tika_parser.from_file(file_path, service='text', xmlContent=True)
         if res['status'] == 200:
             # In[75] : 'a\n\nb\n'.splitlines(keepends=False)  # This is the default
@@ -1067,6 +1070,9 @@ def my_main():
     g_fms_settings.initialize_data()
     g_logger.debug(f'{type(args)}')
     g_logger.debug(f'{args=}')
+    g_logger.info('[bold red]Searching Started :)[/]', extra={"markup": True})
+    g_logger.info('[bold red]TODO: Add code to perform searching...[/]', extra={"markup": True})
+    g_logger.info('[bold red]Searching Complete :)[/]', extra={"markup": True})
 
 
 def exit_handler():
