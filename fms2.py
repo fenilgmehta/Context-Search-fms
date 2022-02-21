@@ -111,6 +111,7 @@ class FmsSettings:
 
         self.cache: bool = False
         self.cache_path: pathlib.Path = pathlib.Path('./.cache/fms')  # Extra variable
+        self.cpu_processes: int = 1
 
         self.verbose: bool = False
         self.debug: bool = False
@@ -143,6 +144,7 @@ class FmsSettings:
         self.cmd: List[str] = FmsSettings.__flatten_list(args.cmd)
 
         self.cache: bool = args.cache
+        self.cpu_processes: int = args.Parallel
 
         self.verbose: bool = args.verbose
         self.debug: bool = args.debug
@@ -337,6 +339,10 @@ class FmsSettings:
             if e.errno != errno.EEXIST:
                 g_logger.error(f'{type(e)=}, {e=}')
                 raise  # This will re-raise the last exception that was active
+
+        # REFER: https://docs.python.org/3/library/multiprocessing.html#multiprocessing.cpu_count
+        if self.cpu_processes == 0:
+            self.cpu_processes = len(os.sched_getaffinity(0))
         pass
 
     def __file_to_search(self, path: str) -> bool:
@@ -906,6 +912,15 @@ def my_main():
             raise argparse.ArgumentTypeError('minimum `CONTEXT_LINE_RANGE` is 0')
         return val
 
+    def parser_check_parallel_int_range(c: str) -> int:
+        # REFER: https://stackoverflow.com/questions/1265665/how-can-i-check-if-a-string-represents-an-int-without-using-try-except
+        if not c.isdigit():
+            raise argparse.ArgumentTypeError(f"invalid int value: '{c}'")
+        val = int(c)
+        if val < 0:
+            raise argparse.ArgumentTypeError('minimum `N` is 0')
+        return val
+
     my_parser.add_argument('-C',
                            '--context',
                            metavar='CONTEXT_LINE_RANGE',
@@ -1055,6 +1070,18 @@ def my_main():
                            action='store_true',
                            help='Cache the text content of the files read for better speed in future file reads. '
                                 '\nNote: Text files will not be cached as there is no performance gain in those cases.')
+    my_parser.add_argument('-P',
+                           '--Parallel',
+                           metavar='N',
+                           action='store',
+                           # REFER: https://stackoverflow.com/questions/18700634/python-argparse-integer-condition-12
+                           type=parser_check_parallel_int_range,
+                           default=1,
+                           # len(os.sched_getaffinity(0)) == nproc
+                           # multiprocessing.cpu_count()  == nproc --all
+                           help='Number of parallel processes to be used for searching [default: 1]'
+                                '\nRequirement: N >= 0'
+                                '\nNote:\n  • N=0 -> `nproc` or `len(os.sched_getaffinity(0))`')
 
     my_parser.add_argument('--verbose',
                            action='store_true',
