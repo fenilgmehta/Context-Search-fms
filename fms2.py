@@ -102,7 +102,7 @@ class FmsSettings:
         self.q_quiet: bool = False
         self.u_url_name: bool = False
         self.color_str: str = 'auto'
-        self.color_bool: bool = False  # Extra variable
+        self.color_bool: bool = False  # Extra variable. It obliterates the need of `self.color_str`.
 
         self.i_input_record_separator: Union[str, None] = None
         self.o_output_segment_separator: str = '--'
@@ -302,10 +302,7 @@ class FmsSettings:
             self.color_bool = (os.getenv('ANSI_COLORS_DISABLED') is None) and \
                               (sys.stdout.isatty() and sys.stderr.isatty())
         else:
-            if str(self.color_str).lower() == 'always':
-                self.color_bool = True
-            else:  # 'never'
-                self.color_bool = False
+            self.color_bool = (str(self.color_str).lower() == 'always')
 
         # ---
 
