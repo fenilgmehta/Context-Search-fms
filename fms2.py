@@ -271,6 +271,7 @@ class FmsSettings:
         g_logger.debug(f'{paths_list=}')
 
         paths_abs_set = set()
+        self.p_r_final_file_paths.clear()
         for p in paths_list:
             p_abs = os.path.abspath(p)
             if p_abs in paths_abs_set:
