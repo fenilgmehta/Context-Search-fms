@@ -110,7 +110,7 @@ class FmsSettings:
         self.cmd_dict: Dict[str, str] = dict()  # Extra variable. It obliterates the need of `self.cmd`.
 
         self.cache: bool = False
-        self.cache_path: pathlib.Path = pathlib.Path('.')  # Extra variable
+        self.cache_path: pathlib.Path = pathlib.Path('./.cache/fms')  # Extra variable
 
         self.verbose: bool = False
         self.debug: bool = False
