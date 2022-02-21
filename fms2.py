@@ -107,6 +107,7 @@ class FmsSettings:
         self.i_input_record_separator: Union[str, None] = None
         self.o_output_segment_separator: str = '--'
         self.cmd: List[str] = list()
+        self.cmd_dict: Dict[str, str] = dict()  # Extra variable. It obliterates the need of `self.cmd`.
 
         self.cache: bool = False
         self.cache_path: pathlib.Path = pathlib.Path('.')  # Extra variable
@@ -303,6 +304,14 @@ class FmsSettings:
                               (sys.stdout.isatty() and sys.stderr.isatty())
         else:
             self.color_bool = (str(self.color_str).lower() == 'always')
+
+        self.cmd_dict.clear()
+        for cmd in self.cmd:
+            idx = cmd.find(':')
+            if idx == -1:
+                g_logger.error(f"Colon (:) not present in `--cmd '{cmd}'`")
+                continue
+            self.cmd_dict[cmd[:idx]] = cmd[idx + 1:]
 
         # ---
 
@@ -1029,6 +1038,7 @@ def my_main():
                                 "\n  • --cmd 'extension:command {}'"
                                 "\n  • --cmd 'extension:command {} | any-processing-by-default-shell'"
                                 "\nNote:"
+                                "\n  • This gets higher priority over the default reading technique"
                                 "\n  • Insert {} in the command to insert 'file name with quotes'"
                                 "\nExample Usage:"
                                 "\n  • --cmd 'txt:cat {}' 'pdf:pdftotext {} -'")
