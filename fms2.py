@@ -914,7 +914,7 @@ def my_main():
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions only to be searched by -r flag.'
+                           help='Files with these extensions only to be searched by -r flag [default: FMS_EXT_YES]'
                                 '\nNote:\n  • For "file.tar.gz" only `-x gz` should be used.'
                                 '\nExample Usage:\n  • -x md -x pdf\n  • -x md pdf')
     my_parser.add_argument('-y',
@@ -923,8 +923,8 @@ def my_main():
                            action='append',
                            nargs='+',
                            type=str,
-                           help='Files with these extensions to be excluded from being searched by -r flag.'
-                                '\nNote:'
+                           help='Files with these extensions to be excluded from being searched by -r flag '
+                                '[default: FMS_EXT_NO]\nNote:'
                                 '\n  • For "file.tar.gz" only `-y gz` should be used.'
                                 '\nExample Usage:\n  • -y tex -y gz\n  • -y tex gz')
     my_parser.add_argument('-X',
@@ -933,7 +933,7 @@ def my_main():
                            action='append',
                            nargs='+',
                            type=str,
-                           help=f'`FMS_EXT_YES or -x Parameters` + '
+                           help=f'`-x Parameters` + '
                                 f'`Files with these extensions` to be searched by -r flag.')
     my_parser.add_argument('-Y',
                            '--extensions-exclude-add',
@@ -941,7 +941,7 @@ def my_main():
                            action='append',
                            nargs='+',
                            type=str,
-                           help=f'`FMS_EXT_NO or -y Parameters` + '
+                           help=f'`-y Parameters` + '
                                 f'`Files with these extensions` to be excluded from being searched by -r flag.')
 
     my_parser.add_argument('-g',
