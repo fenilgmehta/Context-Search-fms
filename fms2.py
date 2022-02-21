@@ -861,7 +861,7 @@ class FmsCache:
         pass
 
 
-def my_main():
+def my_cli_parser():
     global g_fms_settings, g_logger
 
     # Create the parser
@@ -1119,4 +1119,4 @@ g_logger = logging.getLogger("fms")
 g_fms_settings = FmsSettings()
 
 if __name__ == '__main__':
-    my_main()
+    my_cli_parser()
