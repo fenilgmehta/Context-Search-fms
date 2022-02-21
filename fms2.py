@@ -190,11 +190,6 @@ class FmsSettings:
 
         # ---
 
-        if self.c_context < 0:
-            g_logger.warning(f'`{self.c_context=}` < 0')
-            g_logger.warning(f'Using default value `-C 7`')
-            self.c_context = 7
-
         # Generate file extension inclusion and exclusion list
         if not any((self.ei_extensions, self.ei_extensions_add,
                     self.ee_extensions_exclude, self.ee_extensions_exclude_add)):
