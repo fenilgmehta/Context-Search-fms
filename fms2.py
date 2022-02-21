@@ -83,7 +83,7 @@ class FmsSettings:
         self.c_context: int = 7
 
         self.p_r_final_file_paths: List[str] = list()  # Extra variable. Final list of files to search in.
-        self.to_search_text_files: bool = False  # Extra variable. Whether to include text files for search or not.
+        self.to_search_text_files: Union[bool, None] = None  # Extra variable. Whether to search text files or not.
         self.p_paths: List[str] = list()
         self.r_recursive_paths: List[str] = list()
         self.ei_extensions: Union[List[str], Set[str]] = list()
@@ -201,10 +201,7 @@ class FmsSettings:
             g_logger.debug('All of -x, -X, -y and -Y are not used. Using default value `-x FMS_EXT_YES`')
             self.ei_extensions = ['FMS_EXT_YES']
 
-        if len(self.ei_extensions) > 0 and len(self.ee_extensions_exclude) > 0:
-            g_logger.error('-x and -y are both used at the same time. Only one can be used at a time.')
-            sys.exit(1)
-
+        self.to_search_text_files = None
         self.ei_extensions = set(self.ei_extensions + self.ei_extensions_add)
         if 'FMS_EXT_YES' in self.ei_extensions:
             self.ei_extensions.remove('FMS_EXT_YES')
@@ -328,13 +325,18 @@ class FmsSettings:
 
     def __file_to_search(self, path: str) -> bool:
         file_extension = os.path.splitext(path)[1][1:]  # [1:] is used to remove leading '.'
+        g_logger.debug(f"{file_extension} -> '{os.path.splitext(path)[0]}'")
         if file_extension in self.ee_extensions_exclude:
             return False
-        if file_extension in self.ei_extensions:
-            return True
-        if self.to_search_text_files:
-            return ReadAnyFile.is_text_file(path)
-        return False
+        if (self.to_search_text_files is not None) and ReadAnyFile.is_text_file(path):
+            g_logger.debug('self.to_search_text_files is not None')
+            return self.to_search_text_files
+        if len(self.ei_extensions) > 0:
+            g_logger.debug('len(self.ei_extensions) > 0')
+            return file_extension in self.ei_extensions
+        g_logger.debug(f'Default: True\n\t{file_extension=}\n\t{self.to_search_text_files=}'
+                       f'\n\t{self.ei_extensions=}\n\t{self.ee_extensions_exclude=}')
+        return True
 
     @staticmethod
     def __flatten_list(list_of_list: Union[None, List]) -> List:
