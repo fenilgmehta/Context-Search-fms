@@ -293,6 +293,10 @@ class FmsSettings:
 
         # ---
 
+        if self.l_files_with_matches:
+            # No use of `-n` if `-l` is present. This information can help improve the performance.
+            self.n_line_number = False
+
         if str(self.color_str).lower() not in ('auto', 'always', 'never'):
             g_logger.warning(f'Invalid parameter --color={self.color_str}')
             g_logger.warning(f'         Using --color=auto')
