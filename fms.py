@@ -412,6 +412,7 @@ def smart_search(file_read_command: str,
 def parse_parameters(parameters: Dict, input_file_path: str) -> Tuple:
     input_group_separator_raw = None
     file_extension: str = str(pathlib.Path(input_file_path).suffix).lower()
+    # Fix of issue #13
     # NOTE: --show-nonprinting was creating issues with unicode strings, example: 𝑖 = 𝑗
     # file_read_command: str = r'cat --show-nonprinting {}'  # use ^ and M- notation, except for LFD and TAB
     file_read_command: Union[str, Any] = r'cat {}'
