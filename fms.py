@@ -624,6 +624,9 @@ if __name__ == '__main__':
         print("Python dependencies missing, please install joblib and neotermcolor", file=sys.stderr)
         sys.exit(1)
 
+    # NOTE: The below `print` statement is required quickly to debug incorrect CLI arguments and `argparse` errors
+    # print(sys.argv, file=sys.stderr)
+
     # Create the parser
     my_parser = argparse.ArgumentParser(prog='fms.py',
                                         description='Smart multi-word context search across multiples lines',
