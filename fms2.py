@@ -862,8 +862,21 @@ class FmsCache:
         joblib.dump(data, self.fms_settings.cache_path / file_id, compress=2)
 
     def cache_clean(self) -> None:
-        # TODO: clear the full cache
-        pass
+        global g_logger
+        g_logger.info(f'Cache dir: {self.fms_settings.cache_path=}')
+        if not self.fms_settings.cache_path.exists():
+            # This block is highly unlikely to be executed
+            g_logger.error(f"Cache directory not found. Cannot access"
+                           f"\n\t'{self.fms_settings.cache_path}': No such directory")
+            return
+        space_cleaned = 0
+        for f in self.fms_settings.cache_path.iterdir():
+            space_cleaned += f.stat().st_size
+            g_logger.debug(f'file: {f.name}')
+            # TODO: clear the full cache, uncomment the below code
+            # os.remove(f)
+        g_logger.info(f'Space freed: {space_cleaned / 1000 / 1000:.1f} MB')
+        self.my_constructor()
 
     def cache_purge(self, days: int = 31) -> None:
         # TODO: delete cache which was last access before `days` number of days
