@@ -871,8 +871,8 @@ class FmsCache:
             return
         space_cleaned = 0
         for f in self.fms_settings.cache_path.iterdir():
-            space_cleaned += f.stat().st_size
             g_logger.debug(f'file: {f.name}')
+            space_cleaned += f.stat().st_size
             # TODO: clear the full cache, uncomment the below code
             # os.remove(f)
         g_logger.info(f'Space freed: {space_cleaned / 1000 / 1000:.1f} MB')
