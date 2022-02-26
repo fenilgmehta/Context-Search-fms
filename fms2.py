@@ -758,16 +758,16 @@ class FmsCache:
     """
     Generate text cache based on (File Absolute Path, File Size in Bytes, Last Modified Time in Nanoseconds)
 
-    Cache Mapping File Content (self.name_mapping_file):
-        unique_file_id (Used to assign a unique "cache file name" for each "cached file")
-        Key (File Absolute Path) -> Value (
-            Entry Creation Date (Useful in finding and deleting obsolete cached data),
-            Last Access Date (Updated on each access),
-            Tuple[
-                File Size in Bytes,
-                Last Modified Time in Nanoseconds
-            ] (Used to check whether cached data is latest or not),
-            Cache File Name (File Name in which cached data is stored using joblib.dump(...))
+    The below design is good for stale data (i.e. no file renaming, moving, ...)
+    self.name_mapping_file => Complete 'cache' information in one file. Content:
+        self.unique_file_id: Used to assign a unique "cache file name" for each "cached file"
+        self.name_mapping: Key (File Absolute Path) -> Value (
+            date: Entry Creation Date (Useful in finding and deleting obsolete cached data)
+            date: Last Access Date (Updated on each access)
+            Tuple: (Used to check whether cached data is latest or not)
+                int: File Size in Bytes,
+                int: Last Modified Time in Nanoseconds
+            str: Cache File Name (File Name in which cached data is stored using joblib.dump(...))
         )
     """
 
@@ -777,10 +777,10 @@ class FmsCache:
 
         self.unique_file_id: int = 1
         self.name_mapping: Dict[str, List[datetime.date, datetime.date, Tuple[int, int], str]] = dict()
-        self.cache_metadata_updated: bool = False
+        self.cache_metadata_updated: bool = False  # Used to know whether `self.name_mapping` has been updated or not
+
         if not self.name_mapping_file.parent.exists():
             self.name_mapping_file.parent.mkdir(parents=True)
-        pass
 
     def my_constructor(self) -> None:
         self.cache_metadata_updated = False
@@ -794,11 +794,15 @@ class FmsCache:
         if not self.cache_metadata_updated:
             return
         self.cache_metadata_updated = False
-        joblib.dump((self.unique_file_id, self.name_mapping), self.name_mapping_file, compress=1)
+        # Compression level 1 is used for storing cache metadata for better speed
+        joblib.dump(value=(self.unique_file_id, self.name_mapping), filename=self.name_mapping_file, compress=1)
 
     @staticmethod
     def get_file_stats(file_path: pathlib.Path) -> Tuple[int, int]:
-        """It is assumed that Suffix+FileSizeInBytes+ModifiedTimeInNanoSeconds"""
+        """
+        It is assumed that `(FileSizeInBytes, ModifiedTimeInNanoSeconds)` can tell
+        whether the file has been modified or not (i.e. file's cache is valid or not)
+        """
         # REFER: https://docs.python.org/3/library/pathlib.html#correspondence-to-tools-in-the-os-module
         # REFER: https://stackoverflow.com/questions/2104080/how-can-i-check-file-size-in-python
         #        https://docs.python.org/3/library/os.html#os.stat_result.st_size
@@ -810,7 +814,10 @@ class FmsCache:
 
     def cache_check_file(self, file_path: pathlib.Path) -> Tuple[bool, bool]:
         """
-        Returns 2 booleans
+        Returns two booleans:
+            1. file is cached or not
+            2. cache content is latest or not
+        Three possible return values:
             - False, False - File is not cached
             - True , False - File is cached but not the latest version
             - True , True  - Latest version of the file is cached
@@ -823,7 +830,7 @@ class FmsCache:
 
     def cache_read_file(self, file_path: pathlib.Path) -> str:
         """
-        Call this ONLY if 'cache_check_file(...)' returns:
+        NOTE: Call this ONLY if `self.cache_check_file(...)` returns:
             - True, False
             - True, True
         """
@@ -846,10 +853,11 @@ class FmsCache:
             self.unique_file_id += 1
         self.name_mapping[str(file_path.resolve())] = [
             entry_creation_date,
-            datetime.now().date(),
+            datetime.now().date(),  # Last access date
             FmsCache.get_file_stats(file_path),
             file_id
         ]
+        # Compression level 2 is used for storing text content of the cached files for space and speed efficiency
         joblib.dump(data, self.fms_settings.cache_path / file_id, compress=2)
 
     def cache_clean(self) -> None:
