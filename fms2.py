@@ -823,9 +823,10 @@ class FmsCache:
             - True , True  - Latest version of the file is cached
         """
         # REFER: https://stackoverflow.com/questions/42513056/how-to-get-absolute-path-of-a-pathlib-path-object
+        cached_file_info = self.name_mapping[str(file_path.resolve())]
         if (str(file_path.resolve()) in self.name_mapping.keys()) and \
-                (self.fms_settings.cache_path / self.name_mapping[str(file_path.resolve())][-1]).exists():
-            return True, FmsCache.get_file_stats(file_path) == self.name_mapping[str(file_path.resolve())][2]
+                (self.fms_settings.cache_path / cached_file_info[-1]).exists():
+            return True, FmsCache.get_file_stats(file_path) == cached_file_info[2]
         return False, False
 
     def cache_read_file(self, file_path: pathlib.Path) -> str:
