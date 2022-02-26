@@ -879,7 +879,21 @@ class FmsCache:
         self.my_constructor()
 
     def cache_purge(self, days: int = 31) -> None:
-        # TODO: delete cache which was last access before `days` number of days
+        space_cleaned = 0
+        entries_to_delete: Set[str] = set()
+        for (file_abs_path, file_metadata) in self.name_mapping.items():
+            if os.path.exists(file_abs_path) and (datetime.now().date() - file_metadata[1]).days <= days:
+                continue
+            g_logger.debug(f'file: {self.fms_settings.cache_path / file_metadata[3]}')
+            entries_to_delete.add(file_metadata[3])
+            space_cleaned += (self.fms_settings.cache_path / file_metadata[3]).stat().st_size
+            # TODO: delete cached data which was last access before `days` number of days
+            # os.remove(self.fms_settings.cache_path / file_metadata[3])
+        if len(entries_to_delete) > 0:
+            for key_file_abs_path in entries_to_delete:
+                self.name_mapping.pop(key_file_abs_path)
+            self.cache_metadata_updated = True
+        g_logger.info(f'Space freed: {space_cleaned / 1000 / 1000:.1f} MB')
         pass
 
 
