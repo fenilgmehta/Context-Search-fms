@@ -897,6 +897,18 @@ class FmsCache:
         pass
 
 
+def my_reader_searcher_highlighter_and_printer() -> None:
+    g_logger.info('[bold red]Primary Work Started :)[/]', extra={"markup": True})
+    for file in g_fms_settings.p_r_final_file_paths:
+        g_logger.debug(f"File to search: '{file[file.rfind(os.path.sep) + 1:]}' -> '{file}'")
+    # TODO
+    # Parallel Read
+    # Parallel Search
+    # Parallel Highlighting
+    # Sequential Printing
+    g_logger.info('[bold red]All Work Complete :)[/]', extra={"markup": True})
+
+
 def my_cli_parser():
     global g_fms_settings, g_logger
 
@@ -1102,10 +1114,6 @@ def my_cli_parser():
                                 "\nExample Usage:"
                                 "\n  • --cmd 'txt:cat {}' 'pdf:pdftotext {} -'")
 
-    my_parser.add_argument('--cache',
-                           action='store_true',
-                           help='Cache the text content of the files read for better speed in future file reads. '
-                                '\nNote: Text files will not be cached as there is no performance gain in those cases.')
     my_parser.add_argument('-P',
                            '--Parallel',
                            metavar='N',
@@ -1118,6 +1126,10 @@ def my_cli_parser():
                            help='Number of parallel processes to be used for searching [default: 1]'
                                 '\nRequirement: N >= 0'
                                 '\nNote:\n  • N=0 -> `nproc` or `len(os.sched_getaffinity(0))`')
+    my_parser.add_argument('--cache',
+                           action='store_true',
+                           help='Cache the text content of the files read for better speed in future file reads. '
+                                '\nNote: Text files will not be cached as there is no performance gain in those cases.')
 
     my_parser.add_argument('--verbose',
                            action='store_true',
@@ -1133,9 +1145,6 @@ def my_cli_parser():
     g_fms_settings.initialize_data()
     g_logger.debug(f'{type(args)}')
     g_logger.debug(f'{args=}')
-    g_logger.info('[bold red]Searching Started :)[/]', extra={"markup": True})
-    g_logger.info('[bold red]TODO: Add code to perform searching...[/]', extra={"markup": True})
-    g_logger.info('[bold red]Searching Complete :)[/]', extra={"markup": True})
 
 
 def exit_handler():
@@ -1156,3 +1165,4 @@ g_fms_settings = FmsSettings()
 
 if __name__ == '__main__':
     my_cli_parser()
+    my_reader_searcher_highlighter_and_printer()
