@@ -786,9 +786,9 @@ class FmsCache:
         self.cache_metadata_updated = False
         if self.name_mapping_file.exists():
             (self.unique_file_id, self.name_mapping) = joblib.load(self.name_mapping_file)
-        else:
-            self.unique_file_id = 1
-            self.name_mapping = dict()
+            return
+        self.unique_file_id = 1
+        self.name_mapping = dict()
 
     def my_destructor(self) -> None:
         if not self.cache_metadata_updated:
