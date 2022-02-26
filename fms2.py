@@ -847,9 +847,9 @@ class FmsCache:
         entry_creation_date = datetime.now().date()
         file_id: str = str(self.unique_file_id)
         if str(file_path.resolve()) in self.name_mapping.keys():
-            val = self.name_mapping[str(file_path.resolve())]
-            entry_creation_date = val[0]
-            file_id = val[-1]
+            file_metadata = self.name_mapping[str(file_path.resolve())]
+            entry_creation_date = file_metadata[0]
+            file_id = file_metadata[-1]
         else:
             self.unique_file_id += 1
         self.name_mapping[str(file_path.resolve())] = [
