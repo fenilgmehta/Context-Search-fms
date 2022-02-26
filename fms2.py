@@ -248,21 +248,21 @@ class FmsSettings:
             paths_list.append(file)
             paths_abs_set.add(file_abs)
 
-        for file_or_folder in self.r_recursive_paths:
-            if not os.path.exists(file_or_folder):
-                g_logger.warning(f"Cannot access '{file_or_folder}': No such file or directory")
+        for file_or_dir in self.r_recursive_paths:
+            if not os.path.exists(file_or_dir):
+                g_logger.warning(f"Cannot access '{file_or_dir}': No such file or directory")
                 continue
-            file_or_folder_abs = os.path.abspath(file_or_folder)
-            if file_or_folder_abs in paths_abs_set:
-                g_logger.info(f"Skipping duplicate path for -r parameter: '{file_or_folder_abs}'")
+            file_or_dir_abs = os.path.abspath(file_or_dir)
+            if file_or_dir_abs in paths_abs_set:
+                g_logger.info(f"Skipping duplicate path for -r parameter: '{file_or_dir_abs}'")
                 continue
-            if os.path.isfile(file_or_folder):
-                if self.__file_to_search(file_or_folder):
-                    paths_list.append(file_or_folder)
-                paths_abs_set.add(file_or_folder_abs)
+            if os.path.isfile(file_or_dir):
+                if self.__file_to_search(file_or_dir):
+                    paths_list.append(file_or_dir)
+                paths_abs_set.add(file_or_dir_abs)
                 continue
             # REFER: https://mkyong.com/python/python-how-to-list-all-files-in-a-directory/
-            for r, d, f in os.walk(file_or_folder):
+            for r, d, f in os.walk(file_or_dir):
                 r_abs = os.path.abspath(r)
                 if r_abs in paths_abs_set:
                     continue
@@ -325,7 +325,7 @@ class FmsSettings:
         # REFER: https://www.studytonight.com/python-howtos/how-to-get-the-home-directory-in-python
         # REFER: https://stackoverflow.com/questions/22947427/getting-home-directory-with-pathlib
         # REFER: https://www.freecodecamp.org/news/appdata-where-to-find-the-appdata-folder-in-windows-10/
-        #        The Local folder is used to store data that is specific to a single windows system,
+        #        The 'Local' folder is used to store data that is specific to a single windows system,
         #        which means data is not synced between multiple PCs.
         if g_IS_WINDOWS:
             self.cache_path = pathlib.Path(pathlib.Path.home()) / 'AppData' / 'Local' / 'fms'
@@ -945,7 +945,7 @@ def my_cli_parser():
                            action='append',
                            nargs='+',
                            type=str,
-                           help='The list of paths to be used for recursive search. Can be file or folder.')
+                           help='The list of paths to be used for recursive search. Can be file or directory.')
     my_parser.add_argument('-x',
                            '--extensions',
                            metavar='EXT',
