@@ -756,19 +756,25 @@ class ReadAnyFile:
 
 class FmsCache:
     """
-    Generate text cache based on (File Absolute Path, File Size in Bytes, Last Modified Time in Nanoseconds)
+    • Generate text cache based on (File Absolute Path, File Size in Bytes, Last Modified Time in Nanoseconds)
 
-    The below design is good for stale data (i.e. no file renaming, moving, ...)
+    • The text of the cached files is first converted to `List[str]` using `splitlines(keepends=False)` and then
+      stored using `joblib`
+
+    • The below design is good for stale data (i.e. no file renaming, moving, ...)
+
     self.name_mapping_file => Complete 'cache' information in one file. Content:
-        self.unique_file_id: Used to assign a unique "cache file name" for each "cached file"
-        self.name_mapping: Key (File Absolute Path) -> Value (
-            date: Entry Creation Date (Useful in finding and deleting obsolete cached data)
-            date: Last Access Date (Updated on each access)
-            Tuple: (Used to check whether cached data is latest or not)
-                int: File Size in Bytes,
-                int: Last Modified Time in Nanoseconds
-            str: Cache File Name (File Name in which cached data is stored using joblib.dump(...))
-        )
+        self.unique_file_id (int): Used to assign a unique "cache file name" for each "cached file"
+        self.name_mapping (Dict[str, List[datetime.date, datetime.date, Tuple[int, int], str]]):
+            Key (File Absolute Path)
+            Value (
+                datetime.date: Entry Creation Date (Useful in finding and deleting obsolete cached data)
+                datetime.date: Last Access Date (Updated on each access)
+                Tuple[int, int]: (Used to check whether cached data is latest or not)
+                    int: File Size in Bytes,
+                    int: Last Modified Time in Nanoseconds
+                str: Cache File Name (File Name in which cached data is stored using joblib.dump(...))
+            )
     """
 
     def __init__(self, fms_settings: FmsSettings):
