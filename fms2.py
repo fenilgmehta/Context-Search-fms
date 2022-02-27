@@ -25,6 +25,7 @@ from typing import Union, Tuple, List, Dict, Set
 g_IS_WINDOWS: bool = (platform.system() == 'Windows')
 g_logger: Union[logging.Logger, None] = None
 g_fms_settings: Union['FmsSettings', None] = None
+g_fms_cache: Union['FmsCache', None] = None
 g_EXIT_CODE: int = 0
 dependencies_missing = False
 try:
@@ -1162,10 +1163,11 @@ def my_cli_parser():
 
 def exit_handler():
     # Try Except is used to handle the case where "colorama" is not installed
-    global g_logger
+    global g_logger, g_fms_cache
     g_logger.debug('`exit_handler()` function called')
     try:
-        pass
+        if g_fms_cache is not None:
+            g_fms_cache.my_destructor()
     except Exception as e:
         g_logger.error(e)
 
