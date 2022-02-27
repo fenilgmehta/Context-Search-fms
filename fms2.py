@@ -798,6 +798,11 @@ class FmsCache:
         joblib.dump(value=(self.unique_file_id, self.name_mapping), filename=self.name_mapping_file, compress=1)
 
     @staticmethod
+    def is_cacheable(file_path: str) -> bool:
+        """All non-text files are cacheable"""
+        return not ReadAnyFile.is_text_file(file_path)
+
+    @staticmethod
     def get_file_stats(file_path: pathlib.Path) -> Tuple[int, int]:
         """
         It is assumed that `(FileSizeInBytes, ModifiedTimeInNanoSeconds)` can tell
