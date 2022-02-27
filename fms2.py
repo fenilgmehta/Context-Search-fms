@@ -834,8 +834,10 @@ class FmsCache:
             return True, FmsCache.get_file_stats(file_path) == cached_file_info[2]
         return False, False
 
-    def cache_read_file(self, file_path: pathlib.Path) -> str:
+    def cache_read_file(self, file_path: pathlib.Path) -> List[str]:
         """
+        This method reads data from the cache and returns it.
+
         NOTE: Call this ONLY if `self.cache_check_file(...)` returns:
             - True, False
             - True, True
@@ -846,8 +848,8 @@ class FmsCache:
         self.name_mapping[str(file_path.resolve())][1] = datetime.now().date()  # Update cache entry access date
         return joblib.load(self.fms_settings.cache_path / self.name_mapping[str(file_path.resolve())][-1])
 
-    def cache_write_file(self, file_path: pathlib.Path, data: str) -> None:
-        """This will overwrite any old data"""
+    def cache_write_file(self, file_path: pathlib.Path, data: List[str]) -> None:
+        """This method will update the cache and overwrite any old data associated with the file_path"""
         self.cache_metadata_updated = True
         entry_creation_date = datetime.now().date()
         file_id: str = str(self.unique_file_id)
