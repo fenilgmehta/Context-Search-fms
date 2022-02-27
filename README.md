@@ -1,6 +1,9 @@
 # Context-Search-fms
-grep like utility to search text, PDF, doc, docx, pptx, xlsx, odt, ods, epub, docm, dotx,
-fodt, ott and rtf files, and highlight the results using different colors
+
+Note 📢 - `fms.py` will soon be replaced with `fms2.py` (rewritten from scratch to make it modular, simple and faster)
+
+grep like utility to search text, PDF, doc, docx, pptx, xlsx, odt, ods, epub, docm, dotx, fodt, ott and rtf files, and
+highlight the results using different colors
 
 - [Changelog](./CHANGELOG.md)
 - [License](./LICENSE)
@@ -51,8 +54,8 @@ echo "alias fms=\"python3 ${INSTALL_DIR}/fms.py\"" >> ${SHELL_INITIALIZATION}
 fms --help
 ```
 
-
 ### Example
+
 - `fms -in -C 3 -p FmsStory.md -I '\n\n\n' -O'---------' -g 'why fms'`
   ![Sample 1](./imgs/sample_01.png)
 - `fms -in -C 3 -p FmsStory.md -I '\n\n\n' -O'---------' -w 'multi(-)?word' -w 'search'`
@@ -64,7 +67,6 @@ fms --help
   ifconfig | fms -C 1000 -W '([a-z]+[0-9]*)+: ' -W '([0-9a-f]{2}:){5}[0-9a-f]{2}' -W '\<UP\>|\<RUNNING\>|([0-9]{1,3}\.){3}[0-9]{1,3}\>' -W '(errors|dropped|overruns) [^0][0-9]*' -W '[0-9a-f]{4}::[0-9a-f]{1,4}:[0-9a-f]{4}:[0-9a-f]{4}:[0-9a-f]{1,4}'
   echo "abcdefghijklmnopqrstuvwxyz" | fms -g "a b c d e f g h i j k l n o p q r s t u v w x y z"
   ```
-
 
 ### Usage
 
