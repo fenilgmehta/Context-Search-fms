@@ -8,9 +8,11 @@
 import argparse
 import atexit
 import errno
+import gc
 import io
 import logging
 import mimetypes
+import multiprocessing
 import os
 import pathlib
 import platform
@@ -909,6 +911,163 @@ class FmsCache:
             self.cache_metadata_updated = True
         g_logger.info(f'Space freed: {space_cleaned / 1000 / 1000:.1f} MB')
         pass
+
+
+class FmsGrep:
+    @staticmethod
+    def myGrep1(lines: List[str]) -> List[str]:
+        """
+        :param lines: Each element of the list is a line
+        :return: File Segments Matched
+        """
+        global g_fms_settings
+        # CLI Param(s) Used:
+        #     List[str]        : g_fms_settings.g_group
+        #     int              : g_fms_settings.c_context
+        #     bool             : g_fms_settings.i_ignore_case
+        #     bool             : g_fms_settings.n_line_number
+        #     Union[str, None] : g_fms_settings.i_input_record_separator
+        # CLI Param(s) Unused:
+        #     str              : g_fms_settings.o_output_segment_separator
+
+        # REFER: https://stackoverflow.com/questions/2168065/how-do-i-get-rid-of-line-separator-when-using-grep-with-context-lines/8840902
+        command_to_run = ["grep", "-E", "--color=never", "--group-separator", g_fms_settings.GROUP_SEPARATOR,
+                          "-C", str(g_fms_settings.c_context)]
+        if g_fms_settings.i_ignore_case:
+            command_to_run.append("-i")
+
+        group1: List[str] = list()  # Stores the final result
+        group2: List[str] = list()  # Stores temporary results
+
+        if g_fms_settings.i_input_record_separator is None:
+            group1 = lines
+        else:
+            l = 0
+            for r in range(len(lines)):
+                if lines[r] == g_fms_settings.i_input_record_separator:
+                    if r - l >= 1:
+                        group1.append('\n'.join(lines[l:r]))
+                    l = r + 1
+                if g_fms_settings.n_line_number:
+                    lines[r] = f'{r + 1}:{lines[r]}'
+            if len(lines) - l >= 1:  # r - l
+                group1.append('\n'.join(lines[l]))
+
+        for query_word in g_fms_settings.g_group:
+            if len(group1) == 0:
+                break
+            for i in group1:
+                # REFER: https://stackabuse.com/executing-shell-commands-with-python/
+                intermediate_output = subprocess.run(
+                    command_to_run + [query_word], stdout=subprocess.PIPE, text=True, input=i
+                )
+                group2.extend(str(intermediate_output.stdout).split(g_fms_settings.GROUP_SEPARATOR))
+            group1 = group2
+            group2 = list()
+            gc.collect()
+
+        file_segments_matched = list()
+        for i in group1:
+            i = i.strip('\n')
+            if i == '':
+                continue
+            file_segments_matched.append(i)
+
+        gc.collect()
+        return file_segments_matched
+
+    @staticmethod
+    def myMatchingContexts(my_query_words: List[str], lines: List[str], context_lines: int) -> List[bool]:
+        def myResearchBoolSimple_v2(pattern) -> List[bool]:
+            def myReSearchBool(line) -> bool:
+                # REFER: https://stackoverflow.com/questions/9012008/pythons-re-return-true-if-string-contains-regex-pattern
+                return bool(re.search(pattern, line))
+
+            # return [FmsGrep.myReSearchBool(pattern, l) for l in lines]
+            return list(map(myReSearchBool, lines))  # This is faster than the above technique
+
+        # res = [
+        #     multiprocessing.pool.Pool().starmap(
+        #         FmsGrep.myReSearchBool_v1, zip(itertools.repeat(i), lines), chunksize=1000
+        #     ) for i in myQueryWords
+        # ]
+        # res = list(multiprocessing.pool.Pool(processes=4).map(
+        res = list(map(
+            myResearchBoolSimple_v2, my_query_words,
+            # chunksize=1
+        ))
+
+        len_QueryWords = len(my_query_words)
+        len_lines = len(lines)
+
+        countWords: int = 0
+        countQueryWord = [0 for i in range(len_QueryWords)]  # Check "contextLines" range of lines
+        rangeAddition: List[Union[int, bool]] = [0 for i in range(
+            len_lines + 1)]  # Do +1 and -1 to perform range addition, then do prefix sum
+        # This is used to avoid leading and trailing "useless lines" which do not satisfy any query-word
+        # anyofQueryWord = [False for i in range(len_lines)]
+        for l in range(len_lines):
+            # Remove line before the "contextLines"
+            if l - context_lines >= 0:
+                for w in range(len_QueryWords):
+                    countQueryWord[w] -= int(res[w][l - context_lines])
+                    countWords -= (res[w][l - context_lines] and countQueryWord[w] == 0)
+            # Add the new line
+            for w in range(len_QueryWords):
+                # anyofQueryWord[l] |= res[w][l]
+                countQueryWord[w] += int(res[w][l])
+                countWords += (res[w][l] and countQueryWord[w] == 1)
+            # Perform range addition
+            if countWords == len_QueryWords:
+                rangeAddition[max(0, l - context_lines + 1)] += 1
+                rangeAddition[l + 1] -= 1
+        rangeAddition.pop()  # Last element is useless
+        prefixSum = 0
+        for i in range(len(rangeAddition)):
+            prefixSum += rangeAddition[i]
+            rangeAddition[i] = bool(prefixSum)
+        # print(rangeAddition)
+        # print(anyofQueryWord)
+        # This is used to avoid leading and trailing "blank lines" (or useless lines which do not satisfy any query-word)
+        for i in range(1, len_lines):
+            if rangeAddition[i - 1] == False and len(lines[i]) == 0:
+                rangeAddition[i] = False
+            if rangeAddition[len_lines - i] == False and len(lines[len_lines - i - 1]) == 0:
+                rangeAddition[len_lines - i - 1] = False
+            # if rangeAddition[i-1] == False and anyofQueryWord[i] == False:
+            #   rangeAddition[i] = False
+            # if rangeAddition[len_lines - i] == False and anyofQueryWord[len_lines- i - 1] == False:
+            #   rangeAddition[len_lines - i - 1] = False
+        return rangeAddition
+
+    @staticmethod
+    def myGrep2(my_query_words: List[str], lines: List[str], context_lines: int, ignore_case=False,
+                print_line_no: bool = False, result_separator: str = '--') -> str:
+        linesToPrint: List[bool] = FmsGrep.myMatchingContexts(my_query_words, lines, context_lines)
+        isFirstLine = True
+        i = 0
+        N = len(linesToPrint)
+        usefulStrings = list()
+        while i < N:
+            while i < N and linesToPrint[i] == False:
+                i += 1
+            if i == N:
+                break
+
+            if isFirstLine:
+                isFirstLine = False
+            else:
+                # print(separator)
+                usefulStrings.append(result_separator)
+            while i < N and linesToPrint[i] == True:
+                if print_line_no:
+                    # print(i+1, lines[i], sep=':')
+                    usefulStrings.append(str(i + 1) + ':' + lines[i])
+                else:
+                    # print(lines[i])
+                    usefulStrings.append(lines[i])
+                i += 1
+        return '\n'.join(usefulStrings)
 
 
 def my_reader_searcher_highlighter_and_printer() -> None:
