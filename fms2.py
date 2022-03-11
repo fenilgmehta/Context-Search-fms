@@ -915,45 +915,50 @@ class FmsCache:
 
 class FmsGrep:
     @staticmethod
-    def myGrep1(lines: List[str]) -> List[str]:
+    def myGrep1(lines: List[str], query_words: List[str], context_lines: int, ignore_case: bool = False,
+                print_line_no: bool = False, i_input_record_separator: Union[str, None] = None) -> List[str]:
         """
-        :param lines: Each element of the list is a line
-        :return: File Segments Matched
+        Perform FM Search using `grep`
+
+        Args:
+            lines: Each element of the list is a line
+
+        Returns:
+            File Segments Matched
         """
         global g_fms_settings
         # CLI Param(s) Used:
-        #     List[str]        : g_fms_settings.g_group
-        #     int              : g_fms_settings.c_context
-        #     bool             : g_fms_settings.i_ignore_case
-        #     bool             : g_fms_settings.n_line_number
-        #     Union[str, None] : g_fms_settings.i_input_record_separator
-        # CLI Param(s) Unused:
-        #     str              : g_fms_settings.o_output_segment_separator
+        #     List[str]        : g_fms_settings.g_group                  => query_words
+        #     int              : g_fms_settings.c_context                => context_lines
+        #     bool             : g_fms_settings.i_ignore_case            => ignore_case
+        #     bool             : g_fms_settings.n_line_number            => print_line_no
+        #     Union[str, None] : g_fms_settings.i_input_record_separator => i_input_record_separator
 
         # REFER: https://stackoverflow.com/questions/2168065/how-do-i-get-rid-of-line-separator-when-using-grep-with-context-lines/8840902
-        command_to_run = ["grep", "-E", "--color=never", "--group-separator", g_fms_settings.GROUP_SEPARATOR,
-                          "-C", str(g_fms_settings.c_context)]
-        if g_fms_settings.i_ignore_case:
+        command_to_run = [
+            "grep", "-E", "--color=never", "--group-separator", g_fms_settings.GROUP_SEPARATOR, "-C", str(context_lines)
+        ]
+        if ignore_case:
             command_to_run.append("-i")
 
         group1: List[str] = list()  # Stores the final result
         group2: List[str] = list()  # Stores temporary results
 
-        if g_fms_settings.i_input_record_separator is None:
+        if i_input_record_separator is None:
             group1 = lines
         else:
-            l = 0
+            l = 0  # Two pointer technique
             for r in range(len(lines)):
-                if lines[r] == g_fms_settings.i_input_record_separator:
+                if lines[r] == i_input_record_separator:
                     if r - l >= 1:
                         group1.append('\n'.join(lines[l:r]))
                     l = r + 1
-                if g_fms_settings.n_line_number:
+                if print_line_no:
                     lines[r] = f'{r + 1}:{lines[r]}'
             if len(lines) - l >= 1:  # r - l
                 group1.append('\n'.join(lines[l]))
 
-        for query_word in g_fms_settings.g_group:
+        for query_word in query_words:
             if len(group1) == 0:
                 break
             for i in group1:
